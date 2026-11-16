@@ -32,6 +32,10 @@ Varje körning skriver till `runs/<namn>/`:
 
 Exempel finns i [`examples/`](examples/).
 
+Fler verktyg:
+- `sweep.py`: kör samma jämförelse över många frön (t.ex. olika avslöjandeordningar)
+- `scaling.py`: mäter hur svårigheten växer med problemets storlek, jämfört med WalkSAT och slumpvandring
+
 ## Hur världen fungerar (kretsmodellen)
 
 ```
@@ -63,6 +67,7 @@ Exempel finns i [`examples/`](examples/).
 | `sat` | slumpad 3-SAT med planterad lösning | varje lösning ger 4 nya variabler och 16 nya krav; gamla krav finns kvar |
 | `enumerate` | 3-SAT med många lösningar | varje funnen lösning förbjuds: hitta en till |
 | `factor` | hitta p, q > 1 med p·q = N, kodat som en multiplikationskrets | nästa halvprimtal: 15, 21, 22, 25, 26, … |
+| `fresh` | slumpad 3-SAT, 4,26 krav per variabel | varje lösning ger ett **helt nytt** problem: tryck mot generella strategier |
 
 ### Progressivt orakel: problemet visar sig under räkningens gång
 
@@ -115,6 +120,50 @@ Jämfört med klassiska algoritmer, räknat i antal variabelbyten till lösning:
 - Faktorisering av 15 (27 variabler, 116 krav) har ännu inte lösts inom 30 000 tick. Kolonierna
   fastnar på 98–104 av 116 krav.
 - Resultaten varierar mycket mellan slumpfrön. Slutsatser kräver många körningar per inställning.
+
+## Resultat från experimentrundan om progressivt avslöjande
+
+### Hjälper det att avslöja problemet gradvis? Nej, inte i nuvarande form
+
+Växande 3-SAT, 6 frön × 4 kolonier × 30 000 tick (`sweep.py`):
+
+| `--reveal` | lösta problem (medel) | median-tick till första lösning |
+|---|---|---|
+| off | **8,3** | **2 370** |
+| friendly | 4,2 | 12 908 |
+| natural | 4,0 | 10 089 |
+| adversarial | 3,0 | 10 549 |
+| random | 1,7 | 18 953 |
+
+Faktorisering av 15 (6 frön per läge): ingen koloni lyckades i något läge. Med gradvis
+avslöjande kom de som längst till 92 % av problemet avslöjat och uppfyllt (`friendly`).
+
+Trolig förklaring: när få krav syns finns det mat även med ett dåligt svar. Trycket att bli bättre
+försvinner, och varje nytt avslöjande slår omkull kolonins jämvikt.
+
+### Skalning på riktigt svåra problem (`scaling.py`)
+
+Slumpad 3-SAT (inte planterad) med 4,26 krav per variabel, där de svåraste problemen ligger.
+Tabellen visar median antal flips och hur många av instanserna som löstes inom 40 000 tick.
+
+| n | WalkSAT | slumpvandring | myror med instinkter | myror tränade på `fresh` | **handgjorda reparatörer** |
+|---|---|---|---|---|---|
+| 10 | 14 | 54 | 2/6 lösta | 4/10 lösta | 6/6 lösta, 90 flips |
+| 20 | 42 | 181 | 0/6 | 0/10 | 5/6 lösta, 2 576 flips |
+| 30 | 140 | 1 013 | 0/6 | 1/10 | 3/6 lösta |
+| 40–50 | 188–494 | 2 308–20 320 | 0 | 0 | 0 |
+
+De handgjorda reparatörerna har en enda handskriven regel: "kommer du från en död automat och
+står i en förlorande kammare, lägg lera". Det är slumpvandringsmetoden översatt till myrbeteende.
+
+Slutsatser:
+1. **Evolutionen är en flaskhals.** En enkel regel som evolutionen inte hittade på 60 000 tick
+   är dramatiskt bättre än allt evolverat. Urvalet är för svagt: fyra kolonier, och belöningen
+   kopplas inte till själva reparationsbeteendet.
+2. **Fysiken är också en flaskhals.** Även med rätt regel behöver myrorna 10–15 gånger fler flips
+   än slumpvandringen de imiterar. Hundratals myror bygger samtidigt utan samordning, leran
+   eroderar, och trögheten gör att varje ändring tar tid.
+3. Att planterade problem gick bra berodde till stor del på att de är lätta.
 
 ## Vägen mot oraklet
 
