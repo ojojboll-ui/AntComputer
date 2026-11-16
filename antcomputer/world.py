@@ -72,6 +72,7 @@ class Params:
     announce_changes: bool = False  # säg till myrorna när problemet byts
     signal_decay: float = 0.995
     evolution: bool = True
+    worker_sigma: float = 0.1       # variation mellan systrar i drottningsläge
     prior: bool = True              # börja med enkla födosöksinstinkter (inget om lera)
     # "colony": arbetarna är sterila, bara kolonier konkurrerar (ö-selektion) - som i naturen.
     # "individual": nya myror ärver främst från de som burit hem mest mat.
@@ -179,8 +180,10 @@ class Graph:
 
 class Colony:
     def __init__(self, problem: Problem, params: Params, rng: np.random.Generator,
-                 founders: Optional[np.ndarray] = None) -> None:
+                 founders: Optional[np.ndarray] = None, queen: Optional[np.ndarray] = None) -> None:
+        """`queen`: om given är alla arbetare döttrar till denna drottning (drottningsläge)."""
         self.p = params
+        self.queen = queen
         self.rng = rng
         cap = params.pop_cap
         self.alive = np.zeros(cap, dtype=bool)
@@ -197,6 +200,8 @@ class Colony:
         self.tick = 0
         self.g: Optional[Graph] = None
         self.set_problem(problem, announce=False)
+        if queen is not None:
+            founders = self._daughters(params.pop_init)
         if founders is None:
             base = prior_genome() if params.prior else np.zeros((NO, NI))
             founders = base[None] + rng.normal(0, 0.3, (params.pop_init, NO, NI))
@@ -251,6 +256,10 @@ class Colony:
         self.delivered[free] = 0
         self.last_empty[free] = 0
         self.G[free] = genomes[:k]
+
+    def _daughters(self, k: int) -> np.ndarray:
+        """Arbetare: drottningens gener plus liten individuell variation (systrar)."""
+        return self.queen[None] + self.rng.normal(0, self.p.worker_sigma, (k,) + self.queen.shape)
 
     def mutate(self, genomes: np.ndarray) -> np.ndarray:
         mask = self.rng.random(genomes.shape) < self.p.mutation_prob
@@ -396,7 +405,9 @@ class Colony:
         n_birth = int(min(p.max_births_per_tick, self.store // p.birth_cost, p.pop_cap - self.population))
         if n_birth > 0 and self.population > 0:
             live = np.nonzero(self.alive)[0]
-            if p.evolution:
+            if self.queen is not None:
+                kids = self._daughters(n_birth)
+            elif p.evolution:
                 if p.selection == "individual":
                     w = self.delivered[live] / (self.age[live] + 100.0) + 1e-3
                 else:

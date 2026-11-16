@@ -16,6 +16,7 @@ bevisligen kan lösa. Det är samma filtrering som i standardtestsviterna (SATLI
 osatisfierbara instanser kan inte användas för att mäta tid till lösning.
 """
 import argparse
+import functools
 import json
 import math
 import os
@@ -48,11 +49,13 @@ def random_3sat(n: int, ratio: float, rng: random.Random) -> Problem:
     return Problem(f"slump-3-SAT n={n} m={m}", n, clauses, verify)
 
 
-def satisfiable_instance(n: int, ratio: float, seed: int) -> Problem:
+@functools.lru_cache(maxsize=256)
+def satisfiable_instance(n: int, ratio: float, seed: int, max_flips: int = 2_000_000) -> Problem:
+    """Slumpa tills WalkSAT hittar en lösning (osatisfierbara instanser kastas)."""
     rng = random.Random(seed)
     while True:
         p = random_3sat(n, ratio, rng)
-        if walksat(p, max_flips=2_000_000, seed=seed) is not None:
+        if walksat(p, max_flips=max_flips, seed=seed) is not None:
             return p
 
 
