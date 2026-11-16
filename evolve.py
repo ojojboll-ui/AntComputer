@@ -40,8 +40,8 @@ from scaling import satisfiable_instance
 
 def live(args):
     """En kolonis liv. Returnerar fitness och vad som hände."""
-    queen, n, ratio, lifetime, stream_seed, colony_seed, hold = args
-    params = Params()
+    queen, n, ratio, lifetime, stream_seed, colony_seed, hold, mode = args
+    params = Params(learning=mode in ("baldwin", "lamarck"), culture=mode == "culture")
     rng = np.random.default_rng(colony_seed)
     k = 0
     problem = satisfiable_instance(n, ratio, stream_seed * 1000 + k, 100_000)
@@ -72,7 +72,8 @@ def live(args):
         if col.population == 0:
             break
     focus = (dep_help / dep) / (base_w / dep) if dep and base_w else None
-    return dict(fitness=solved * 100_000 + food, food=food, solved=solved, survived=col.population > 0, final_pop=col.population,
+    learned = col.G[col.alive].mean(axis=0) if col.population else queen
+    return dict(fitness=solved * 100_000 + food, food=food, solved=solved, learned=learned, survived=col.population > 0, final_pop=col.population,
                 solve_ticks=solve_ticks, repair_focus=focus, deposits_per_tick=dep / max(t, 1))
 
 
@@ -108,6 +109,9 @@ def main() -> None:
     ap.add_argument("--sigma", type=float, default=0.2)
     ap.add_argument("--mut-prob", type=float, default=0.15)
     ap.add_argument("--crossover", type=float, default=0.5)
+    ap.add_argument("--mode", default="none", choices=["none", "baldwin", "lamarck", "culture"],
+                    help="none: bara gener. baldwin: inlärning under livet, ej ärftlig. "
+                         "lamarck: inlärt skrivs in i generna. culture: myrorna härmar varandra")
     ap.add_argument("--blank-slate", action="store_true", help="drottningarna börjar utan några instinkter")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--workers", type=int, default=os.cpu_count())
@@ -125,7 +129,8 @@ def main() -> None:
     with Pool(a.workers) as pool:
         for gen in range(a.generations):
             stream = a.seed * 100000 + gen
-            jobs = [(q, n, a.ratio, a.lifetime, stream, a.seed * 10**6 + gen * 1000 + i, 20) for i, q in enumerate(queens)]
+            jobs = [(q, n, a.ratio, a.lifetime, stream, a.seed * 10**6 + gen * 1000 + i, 20, a.mode)
+                    for i, q in enumerate(queens)]
             res = pool.map(live, jobs)
             fit = [r["fitness"] for r in res]
             solving = sum(r["solved"] > 0 for r in res) / len(res)
@@ -140,10 +145,16 @@ def main() -> None:
                        seconds=round(time.time() - t0))
             log.append(row)
             print(json.dumps(row, ensure_ascii=False), flush=True)
+            if a.mode != "none":
+                drift = float(np.mean([np.abs(r["learned"] - q).mean() for r, q in zip(res, queens)]))
+                row["learned_drift"] = round(drift, 4)
             np.save(out / f"best_queen_gen{gen:03d}.npy", queens[b])
             best_ever = queens[b].copy()
             if solving >= a.raise_at:
                 n += a.dn
+            if a.mode == "lamarck":
+                # det kolonin lärt sig under livet skrivs in i drottningens arv
+                queens = np.stack([r["learned"] for r in res])
             queens, _ = reproduce(queens, fit, rng, a.elite, a.sigma, a.mut_prob, a.crossover)
             np.save(out / "queens.npy", queens)
 
@@ -158,7 +169,7 @@ def main() -> None:
                                                    ensure_ascii=False))
     L = [f"# Evolution `{a.name}`", "",
          f"{a.queens} drottningar × {a.generations} generationer, liv {a.lifetime} tick, "
-         f"{'utan instinkter' if a.blank_slate else 'med födosöksinstinkter'}, frö {a.seed}. "
+         f"{'utan instinkter' if a.blank_slate else 'med födosöksinstinkter'}, läge **{a.mode}**, frö {a.seed}. "
          f"Tid {round(time.time() - t0)} s.", "",
          "| gen | n | bästa fitness | median fitness | andel som löser | lösta totalt | överlevde | "
          "reparationsfokus bästa | median |", "|---|---|---|---|---|---|---|---|---|"]

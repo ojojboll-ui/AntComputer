@@ -73,6 +73,16 @@ class Params:
     signal_decay: float = 0.995
     evolution: bool = True
     worker_sigma: float = 0.1       # variation mellan systrar i drottningsläge
+    # --- inlärning under livet (belöningsstyrd, bara lokala signaler)
+    learning: bool = False
+    learn_rate: float = 0.05
+    trace_decay: float = 0.9        # hur långt bakåt en belöning når (eligibility trace)
+    # --- kultur: härma grannar som lever där det blomstrar, nyfödda lär av äldre
+    culture: bool = False
+    copy_rate: float = 0.05         # chans per tick att härma bästa grannen på samma plats
+    copy_strength: float = 0.3      # hur mycket av grannens beteende som tas över
+    copy_noise: float = 0.05        # kulturell mutation: man härmar aldrig perfekt
+    prosper_decay: float = 0.95     # minne av hur ofta myran hittat levande automater
     prior: bool = True              # börja med enkla födosöksinstinkter (inget om lera)
     # "colony": arbetarna är sterila, bara kolonier konkurrerar (ö-selektion) - som i naturen.
     # "individual": nya myror ärver främst från de som burit hem mest mat.
@@ -195,6 +205,9 @@ class Colony:
         self.delivered = np.zeros(cap)
         self.last_empty = np.zeros(cap)
         self.G = np.zeros((cap, NO, NI))
+        self.elig = np.zeros((cap, 2, NI))   # spår av nyliga lerbeslut (för inlärning)
+        self.prosper = np.full(cap, 0.5)     # hur ofta myran nyligen hittat levande automater
+        self.reward_base = 0.5
         self.store = params.store_init
         self.signal = 0.0
         self.tick = 0
@@ -255,7 +268,21 @@ class Colony:
         self.life[free] = self.p.lifespan + self.rng.integers(-self.p.lifespan_jitter, self.p.lifespan_jitter + 1, k)
         self.delivered[free] = 0
         self.last_empty[free] = 0
+        self.elig[free] = 0
+        self.prosper[free] = 0.5
         self.G[free] = genomes[:k]
+        if self.p.culture and self.population > k:
+            # nyfödda lär av en äldre syster; de som lever där det blomstrar är förebilder oftare
+            elders = np.nonzero(self.alive)[0]
+            elders = elders[~np.isin(elders, free)]
+            w = self.prosper[elders] ** 2 + 1e-6
+            teach = self.rng.choice(elders, size=k, p=w / w.sum())
+            self._imitate(free, teach)
+
+    def _imitate(self, pupils: np.ndarray, models: np.ndarray) -> None:
+        b = self.p.copy_strength
+        self.G[pupils] += b * (self.G[models] - self.G[pupils])
+        self.G[pupils] += self.rng.normal(0, self.p.copy_noise, self.G[pupils].shape)
 
     def _daughters(self, k: int) -> np.ndarray:
         """Arbetare: drottningens gener plus liten individuell variation (systrar)."""
@@ -315,8 +342,15 @@ class Colony:
             out = np.einsum("aoi,ai->ao", self.G[ids], X)
 
             # --- lera
-            dep = at_pad & (rng.random(len(ids)) < sigmoid(out[:, O["deposit_clay"]]))
-            rem = at_pad & ~dep & (rng.random(len(ids)) < sigmoid(out[:, O["remove_clay"]]))
+            p_dep = sigmoid(out[:, O["deposit_clay"]])
+            p_rem = sigmoid(out[:, O["remove_clay"]])
+            dep = at_pad & (rng.random(len(ids)) < p_dep)
+            rem = at_pad & ~dep & (rng.random(len(ids)) < p_rem)
+            if p.learning:
+                # REINFORCE-spår: (gjorde - sannolikhet) * sinnesintryck, bara där beslutet spelade roll
+                gd = ((dep - p_dep) * at_pad)[:, None] * X
+                gr = ((rem - p_rem) * (at_pad & ~dep))[:, None] * X
+                self.elig[ids] = p.trace_decay * self.elig[ids] + np.stack([gd, gr], axis=1)
             if dep.any():
                 np.add.at(self.clay, node[dep], 1.0)
                 stats["deposits"] = int(dep.sum())
@@ -349,10 +383,37 @@ class Colony:
             node = nxt
             nt = g.ntype[node]
 
+            # --- kultur: härma den bästa grannen på samma plats
+            if p.culture and len(ids) > 1:
+                cop = ids[rng.random(len(ids)) < p.copy_rate]
+                if len(cop):
+                    order = np.argsort(self.node[ids], kind="stable")
+                    sid, sn = ids[order], self.node[ids][order]
+                    starts = np.r_[0, np.nonzero(np.diff(sn))[0] + 1]
+                    # bästa myran (högst "blomstring") på varje plats
+                    pr = self.prosper[sid]
+                    best_idx = np.array([s0 + np.argmax(pr[s0:e0]) for s0, e0 in zip(starts, np.r_[starts[1:], len(sid)])])
+                    best_of_node = dict(zip(sn[starts].tolist(), sid[best_idx].tolist()))
+                    model = np.array([best_of_node[n] for n in self.node[cop].tolist()])
+                    keep = self.prosper[model] > self.prosper[cop]
+                    if keep.any():
+                        self._imitate(cop[keep], model[keep])
+
             # --- vid automaten: känn om den är levande (kravet uppfyllt) eller död, plocka mat
             at_c = nt == CLAUSE
             alive_c = self.sat_prev[node[at_c] - g.clause_node[0]]
             self.last_empty[ids[at_c]] = (~alive_c).astype(float)
+            arrived = ids[at_c]
+            if len(arrived):
+                r = alive_c.astype(float)
+                self.prosper[arrived] = p.prosper_decay * self.prosper[arrived] + (1 - p.prosper_decay) * r
+                if p.learning:
+                    # belöning: att komma fram till en levande automat, jämfört med hur det brukar vara
+                    adv = (r - self.reward_base)[:, None, None]
+                    rows = [O["deposit_clay"], O["remove_clay"]]
+                    upd = p.learn_rate * adv * self.elig[arrived]
+                    self.G[arrived[:, None], rows] = np.clip(self.G[arrived[:, None], rows] + upd, -10, 10)
+                self.reward_base = 0.99 * self.reward_base + 0.01 * float(r.mean())
             cand = ids[at_c & ~self.carrying[ids] & (self.food[node] >= 1.0)]
             if len(cand):
                 cand = rng.permutation(cand)
