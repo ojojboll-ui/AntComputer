@@ -135,6 +135,9 @@ def main() -> None:
     ap.add_argument("--blank-slate", action="store_true", help="drottningarna börjar utan några instinkter")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--workers", type=int, default=os.cpu_count())
+    ap.add_argument("--resume", action="store_true",
+                    help="fortsätt en avbruten körning från runs/<namn>/queens.npy och state.json")
+    ap.add_argument("--resume-log", help="äldre körning utan state.json: utskriften (stdout-loggen) att läsa historiken från")
     a = ap.parse_args()
 
     flags = parse_mode(a.mode)
@@ -147,9 +150,25 @@ def main() -> None:
     cultures = [None] * a.queens
     log = []
     best_ever = None
-    t0 = time.time()
+    start = 0
+    if a.resume:
+        state = out / "state.json"
+        if state.exists():
+            log = json.loads(state.read_text())["log"]
+        else:
+            log = [json.loads(line) for line in Path(a.resume_log).read_text().splitlines() if line.startswith("{")]
+        last = log[-1]
+        start = last["gen"] + 1
+        n = last["n"] + (a.dn if last["share_solving"] >= a.raise_at else 0)
+        queens = np.load(out / "queens.npy")
+        best_ever = np.load(out / f"best_queen_gen{last['gen']:03d}.npy")
+        if (out / "cultures.npy").exists():
+            cultures = list(np.load(out / "cultures.npy"))
+        rng = np.random.default_rng([a.seed, start])  # nytt slumpflöde efter avbrottet
+        print(f"fortsätter från generation {start}, n={n}", flush=True)
+    t0 = time.time() - (log[-1]["seconds"] if log else 0)
     with Pool(a.workers) as pool:
-        for gen in range(a.generations):
+        for gen in range(start, a.generations):
             stream = a.seed * 100000 + gen
             jobs = [(q, n, a.ratio, a.lifetime, stream, a.seed * 10**6 + gen * 1000 + i, 20, a.mode, cultures[i])
                     for i, q in enumerate(queens)]
@@ -182,6 +201,9 @@ def main() -> None:
                 # kulturarv: den nya kolonins grundare bär mor-kolonins inlärda beteende
                 cultures = [res[p]["learned"] for p in parents]
             np.save(out / "queens.npy", queens)
+            if "heritage" in flags:
+                np.save(out / "cultures.npy", np.stack(cultures))
+            (out / "state.json").write_text(json.dumps(dict(log=log), ensure_ascii=False))
 
     # bästa drottningens döttrar som fil för scaling.py
     np.save(out / "best_queen_workers.npy", best_ever[None] + np.random.default_rng(0).normal(0, 0.1, (50, NO, NI)))
