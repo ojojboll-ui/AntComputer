@@ -40,12 +40,13 @@ from scaling import satisfiable_instance
 
 def live(args):
     """En kolonis liv. Returnerar fitness och vad som hände."""
-    queen, n, ratio, lifetime, stream_seed, colony_seed, hold, mode = args
-    params = Params(learning=mode in ("baldwin", "lamarck"), culture=mode == "culture")
+    queen, n, ratio, lifetime, stream_seed, colony_seed, hold, mode, culture_seed = args
+    flags = parse_mode(mode)
+    params = Params(learning=bool(flags & {"baldwin", "lamarck"}), culture="culture" in flags)
     rng = np.random.default_rng(colony_seed)
     k = 0
     problem = satisfiable_instance(n, ratio, stream_seed * 1000 + k, 100_000)
-    col = Colony(problem, params, rng, queen=queen)
+    col = Colony(problem, params, rng, queen=queen, culture_seed=culture_seed)
     food = 0.0
     solved, held = 0, 0
     dep = dep_help = base_w = 0.0
@@ -77,13 +78,31 @@ def live(args):
                 solve_ticks=solve_ticks, repair_focus=focus, deposits_per_tick=dep / max(t, 1))
 
 
+MODE_TOKENS = {"none", "baldwin", "lamarck", "culture", "heritage"}
+
+
+def parse_mode(mode: str) -> set:
+    """Lägen kan kombineras med +, t.ex. baldwin+culture eller culture+heritage."""
+    flags = set(mode.split("+")) - {"none"}
+    bad = flags - MODE_TOKENS
+    if bad:
+        raise SystemExit(f"okänt läge: {bad}; välj bland {sorted(MODE_TOKENS)}")
+    if "heritage" in flags and "culture" not in flags:
+        raise SystemExit("heritage (kulturarv) kräver culture")
+    return flags
+
+
 def reproduce(queens, fitness, rng, elite, sigma, mut_prob, crossover):
+    """Returnerar nya drottningar, rangordningen och vilken drottning som är (första) förälder."""
     order = np.argsort(-np.asarray(fitness))
     ranked = queens[order]
     top = ranked[: max(2, len(queens) // 2)]
     new = [ranked[i].copy() for i in range(elite)]
+    parents = [int(order[i]) for i in range(elite)]
     while len(new) < len(queens):
-        a = top[rng.integers(len(top))]
+        ia = rng.integers(len(top))
+        parents.append(int(order[ia]))
+        a = top[ia]
         if rng.random() < crossover:  # bröllopsflykt: två drottningar blandar gener
             b = top[rng.integers(len(top))]
             child = np.where(rng.random(a.shape) < 0.5, a, b)
@@ -92,7 +111,7 @@ def reproduce(queens, fitness, rng, elite, sigma, mut_prob, crossover):
         mask = rng.random(child.shape) < mut_prob
         child = child + mask * rng.normal(0, sigma, child.shape)
         new.append(child)
-    return np.stack(new), order
+    return np.stack(new), order, parents
 
 
 def main() -> None:
@@ -109,27 +128,30 @@ def main() -> None:
     ap.add_argument("--sigma", type=float, default=0.2)
     ap.add_argument("--mut-prob", type=float, default=0.15)
     ap.add_argument("--crossover", type=float, default=0.5)
-    ap.add_argument("--mode", default="none", choices=["none", "baldwin", "lamarck", "culture"],
+    ap.add_argument("--mode", default="none",
                     help="none: bara gener. baldwin: inlärning under livet, ej ärftlig. "
-                         "lamarck: inlärt skrivs in i generna. culture: myrorna härmar varandra")
+                         "lamarck: inlärt skrivs in i generna. culture: myrorna härmar varandra. "
+                         "heritage: ny koloni ärver mor-kolonins kultur. Kombinera med +, t.ex. baldwin+culture")
     ap.add_argument("--blank-slate", action="store_true", help="drottningarna börjar utan några instinkter")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--workers", type=int, default=os.cpu_count())
     a = ap.parse_args()
 
+    flags = parse_mode(a.mode)
     rng = np.random.default_rng(a.seed)
     base = np.zeros((NO, NI)) if a.blank_slate else prior_genome()
     queens = base[None] + rng.normal(0, 0.3, (a.queens, NO, NI))
     out = Path("runs") / a.name
     out.mkdir(parents=True, exist_ok=True)
     n = a.n0
+    cultures = [None] * a.queens
     log = []
     best_ever = None
     t0 = time.time()
     with Pool(a.workers) as pool:
         for gen in range(a.generations):
             stream = a.seed * 100000 + gen
-            jobs = [(q, n, a.ratio, a.lifetime, stream, a.seed * 10**6 + gen * 1000 + i, 20, a.mode)
+            jobs = [(q, n, a.ratio, a.lifetime, stream, a.seed * 10**6 + gen * 1000 + i, 20, a.mode, cultures[i])
                     for i, q in enumerate(queens)]
             res = pool.map(live, jobs)
             fit = [r["fitness"] for r in res]
@@ -152,10 +174,13 @@ def main() -> None:
             best_ever = queens[b].copy()
             if solving >= a.raise_at:
                 n += a.dn
-            if a.mode == "lamarck":
+            if "lamarck" in flags:
                 # det kolonin lärt sig under livet skrivs in i drottningens arv
                 queens = np.stack([r["learned"] for r in res])
-            queens, _ = reproduce(queens, fit, rng, a.elite, a.sigma, a.mut_prob, a.crossover)
+            queens, _, parents = reproduce(queens, fit, rng, a.elite, a.sigma, a.mut_prob, a.crossover)
+            if "heritage" in flags:
+                # kulturarv: den nya kolonins grundare bär mor-kolonins inlärda beteende
+                cultures = [res[p]["learned"] for p in parents]
             np.save(out / "queens.npy", queens)
 
     # bästa drottningens döttrar som fil för scaling.py

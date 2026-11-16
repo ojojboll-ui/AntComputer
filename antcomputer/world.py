@@ -190,8 +190,11 @@ class Graph:
 
 class Colony:
     def __init__(self, problem: Problem, params: Params, rng: np.random.Generator,
-                 founders: Optional[np.ndarray] = None, queen: Optional[np.ndarray] = None) -> None:
-        """`queen`: om given är alla arbetare döttrar till denna drottning (drottningsläge)."""
+                 founders: Optional[np.ndarray] = None, queen: Optional[np.ndarray] = None,
+                 culture_seed: Optional[np.ndarray] = None) -> None:
+        """`queen`: om given är alla arbetare döttrar till denna drottning (drottningsläge).
+        `culture_seed`: kulturarv; grundarmyrorna börjar med detta beteende (mor-kolonins kultur)
+        i stället för drottningens gener. Nyfödda är ändå drottningens döttrar."""
         self.p = params
         self.queen = queen
         self.rng = rng
@@ -215,6 +218,8 @@ class Colony:
         self.set_problem(problem, announce=False)
         if queen is not None:
             founders = self._daughters(params.pop_init)
+            if culture_seed is not None:
+                founders = culture_seed[None] + rng.normal(0, params.worker_sigma, founders.shape)
         if founders is None:
             base = prior_genome() if params.prior else np.zeros((NO, NI))
             founders = base[None] + rng.normal(0, 0.3, (params.pop_init, NO, NI))
