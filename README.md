@@ -165,6 +165,31 @@ Slutsatser:
    eroderar, och trögheten gör att varje ändring tar tid.
 3. Att planterade problem gick bra berodde till stor del på att de är lätta.
 
+## Äkta evolutionärt tryck (`evolve.py`)
+
+24 drottningar per generation, arbetarna är hennes döttrar, varje generation helt nya slumpade
+3-SAT-problem vid 4,26 krav per variabel. Mat ger överlevnad, lösningar ger fortplantning, och
+problemen växer när hälften av kolonierna klarar nuvarande storlek. 50 generationer, ett frö.
+
+| körning | nådde storlek | lösta problem totalt | reparationsfokus vid slutet |
+|---|---|---|---|
+| med födosöksinstinkter | n = 18 | 183 | 0,35 |
+| utan instinkter | n = 16 | 151 | 0,87 |
+
+Kolonierna med instinkter utvecklade en egen strategi: **skydda det som fungerar**. Deras mest
+förändrade gen är "lägg lera där det finns mat", alltså på kammare som redan vinner. Det är den
+ena halvan av WalkSAT: välj den ändring som förstör minst. Den handgjorda regeln motsvarar den
+andra halvan: reparera ett brutet krav. Evolutionen återupptäckte alltså en del av en känd
+algoritm, utan att knuffas dit.
+
+Bästa drottningen från varje körning testades på nya problem (`examples/skalning-evolverade.md`).
+På 10 variabler löste de evolverade 4 av 6 problem mot 2 av 6 för instinktmyrorna. Den med
+instinkter behövde 156 flips i median, nära den handgjorda regelns 90. Vid 20 variabler och uppåt
+löser de nästan inget, och den handgjorda regeln är fortfarande bäst.
+
+Jämförelser med inlärning under livet (Baldwin), ärftlig inlärning (Lamarck), kultur och kulturarv
+mellan kolonier pågår, se `evolve.py --mode` och `compare_evo.py`.
+
 ## Vägen mot oraklet
 
 1. **Statistik:** kör många frön per inställning och jämför med kontrollgruppen.
