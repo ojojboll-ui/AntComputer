@@ -62,7 +62,7 @@ Exempel finns i [`examples/`](examples/).
 |---|---|---|
 | `sat` | slumpad 3-SAT med planterad lösning | varje lösning ger 4 nya variabler och 16 nya krav; gamla krav finns kvar |
 | `enumerate` | 3-SAT med många lösningar | varje funnen lösning förbjuds: hitta en till |
-| `factor` | hitta p, q > 1 med p·q = N, kodat som en multiplikationskrets | nästa halvprimtal: 15, 21, 25, 33, … |
+| `factor` | hitta p, q > 1 med p·q = N, kodat som en multiplikationskrets | nästa halvprimtal: 15, 21, 22, 25, 26, … |
 
 Regelbyten är tysta som förval, så myrorna märker bara att maten tar slut. Med
 `--announce-changes` får de en larmsignal som klingar av.
