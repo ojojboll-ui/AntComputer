@@ -12,6 +12,7 @@ oberoende, och oraklet skärper genast kraven.
 
 ```bash
 pip install numpy
+pip install python-sat   # valfritt: facit för det öppna oraklet
 python run.py --name forsta --ticks 30000             # växande 3-SAT
 python run.py --name faktor --oracle factor --ticks 100000 --trace-every 0
 python run.py --name kontroll --no-evolution          # kontrollgrupp
