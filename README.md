@@ -200,10 +200,10 @@ arvsmassor, 40 000 tick var, ett frö. Hela tabellen finns i `examples/oppet-ora
 
 | arvsmassa | lösbara lösta (av 11) | omöjliga där bästa möjliga nåddes (av 10) |
 |---|---|---|
-| instinkt | 0 | 5 |
-| evolverad | 2 | 6 |
-| evolverad utan instinkter | 1 | 5 |
-| handgjord reparatör | 7 | 9 |
+| instinkt | 0 | 3 |
+| evolverad | 2 | 5 |
+| evolverad utan instinkter | 1 | 4 |
+| handgjord reparatör | 6 | 9 |
 
 * **Inget nytt hittades.** Myrorna löste bara små problem som WalkSAT klarar på 3 till 20 flips.
   De större (Schur 13, van der Waerden 34, 8 damer, Ramsey K17) blev nästan men aldrig helt lösta.
