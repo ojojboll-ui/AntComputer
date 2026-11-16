@@ -191,6 +191,31 @@ löser de nästan inget, och den handgjorda regeln är fortfarande bäst.
 Jämförelser med inlärning under livet (Baldwin), ärftlig inlärning (Lamarck), kultur och kulturarv
 mellan kolonier pågår, se `evolve.py --mode` och `compare_evo.py`.
 
+## Det öppna oraklet: kända problem, okänt svar (`open_oracle.py`)
+
+21 klassiska problem (Ramsey, Schur, van der Waerden, duvslag, graffärgning, damer, faktorisering),
+i par där det ena går att lösa och det andra är bevisat omöjligt. Oraklet visste inte vilket. Det
+betalade bara mat för uppfyllda krav. Facit räknades ut efteråt med en riktig SAT-lösare. Fyra
+arvsmassor, 40 000 tick var, ett frö. Hela tabellen finns i `examples/oppet-orakel.md`.
+
+| arvsmassa | lösbara lösta (av 11) | omöjliga där bästa möjliga nåddes (av 10) |
+|---|---|---|
+| instinkt | 0 | 5 |
+| evolverad | 2 | 6 |
+| evolverad utan instinkter | 1 | 5 |
+| handgjord reparatör | 7 | 9 |
+
+* **Inget nytt hittades.** Myrorna löste bara små problem som WalkSAT klarar på 3 till 20 flips.
+  De större (Schur 13, van der Waerden 34, 8 damer, Ramsey K17) blev nästan men aldrig helt lösta.
+* **När det är omöjligt hittar de ofta det bästa möjliga.** Det handlar om bästa möjliga antal
+  uppfyllda krav (MAX-SAT). Den handgjorda regeln nådde det på 9 av 10 omöjliga problem.
+* **De lugnar ner sig när det är omöjligt.** Olösta kolonier på omöjliga problem ändrade sitt
+  svar 0,05 gånger per tick sent i körningen. På lösbara men olösta problem var det 0,17. En
+  koloni som fastnat på ett omöjligt problem slutar alltså leta, utan att någon har sagt att det
+  är omöjligt. Det är en antydan, ett frö, inte ett bevis.
+* **Många kolonier dog ut (†).** Ekonomin är byggd för 3-SAT. På problem med många långa krav
+  räckte maten inte, så vikterna i ekonomin behöver justeras per problemfamilj.
+
 ## Vägen mot oraklet
 
 1. **Statistik:** kör många frön per inställning och jämför med kontrollgruppen.

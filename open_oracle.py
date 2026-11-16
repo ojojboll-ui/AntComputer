@@ -141,7 +141,7 @@ def main() -> None:
             if r["solved"]:
                 cells.append(f"**LÖST** (t={r['solve_tick']})" + ("" if r["verified"] else " EJ VERIFIERAT!"))
             else:
-                star = " ★" if f["optimum"] is not None and r["best"] == f["optimum"] else ""
+                star = " ★" if f["truth"] == "omöjligt" and r["best"] == f["optimum"] else ""
                 cells.append(f"{r['best']}/{r['m']}{star}" + (" †" if r["extinct"] else ""))
         ws = "—" if f["walksat"] is None else ("—" if f["walksat"] == float("inf") else f"{f['walksat']:.0f}")
         L.append(f"| {p.name} | {f['truth']} | {f['optimum']}/{len(p.clauses)} | {ws} | " + " | ".join(cells) + " |")
