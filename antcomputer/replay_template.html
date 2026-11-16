@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Myrdatorn – uppspelning</title>
+<style>
+  :root { --bg:#f6f4ef; --fg:#1d1b18; --muted:#6b665d; --nest:#8a5a2b; --true:#2f7d4f; --false:#b0413e;
+          --sat:#2f7d4f; --unsat:#c9c2b5; --edge:#7a6f5d; --ant:#1d1b18; --food:#d9a21b; --panel:#ffffff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#15140f; --fg:#ece8df; --muted:#9b958a;
+          --nest:#c48a4f; --true:#5fc28a; --false:#e0706b; --sat:#5fc28a; --unsat:#3a372f; --edge:#a99d88; --ant:#ece8df;
+          --food:#f0c040; --panel:#1f1d17; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, sans-serif; }
+  main { max-width:1000px; margin:0 auto; padding:16px; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .muted { color:var(--muted); }
+  canvas { width:100%; height:auto; background:var(--panel); border-radius:8px; display:block; }
+  .bar { display:flex; gap:8px; align-items:center; margin:10px 0; flex-wrap:wrap; }
+  input[type=range] { flex:1; min-width:160px; }
+  button { font:inherit; padding:4px 12px; border-radius:6px; border:1px solid var(--muted); background:var(--panel); color:var(--fg); cursor:pointer; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin:8px 0; }
+  .stat { background:var(--panel); border-radius:8px; padding:8px; }
+  .stat b { display:block; font-size:16px; }
+  code { font-size:12px; word-break:break-all; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Myrdatorn</h1>
+  <div class="muted" id="problem"></div>
+  <div class="stats">
+    <div class="stat"><span class="muted">tick</span><b id="s-t"></b></div>
+    <div class="stat"><span class="muted">nivå</span><b id="s-level"></b></div>
+    <div class="stat"><span class="muted">myror</span><b id="s-pop"></b></div>
+    <div class="stat"><span class="muted">förråd</span><b id="s-store"></b></div>
+    <div class="stat"><span class="muted">krav uppfyllda</span><b id="s-sat"></b></div>
+  </div>
+  <canvas id="c" width="1000" height="1000"></canvas>
+  <div class="bar">
+    <button id="play">▶</button>
+    <input type="range" id="slider" min="0" value="0">
+    <select id="speed"><option value="1">1×</option><option value="3" selected>3×</option><option value="10">10×</option></select>
+  </div>
+  <div class="muted">Mitten: boet. Inre ring: variabelkammare (grön = sann, röd = falsk; storlek = lera, fylld = vinnande).
+    Yttre ring: matautomater (krav); grön = uppfyllt, guld = mat. Tunnlarnas tjocklek = doft, färg = starkaste doftämnet.
+    Svarta prickar = myror (ring = bär mat).</div>
+  <p><span class="muted">tilldelning:</span> <code id="val"></code></p>
+</main>
+<script>
+const TRACE = /*__TRACE__*/null;
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const CH = ['#3b6fd6', '#d65f3b', '#9b4fd6'];
+const layouts = TRACE.layouts.map(L => {
+  const n = L.n_vars, m = L.clauses.length, W = 1000, cx = W/2, cy = W/2;
+  const pos = [[cx, cy]];
+  const r1 = 270, r2 = 440;
+  for (let v = 0; v < n; v++) {
+    const a = (v + 0.5) / n * 2 * Math.PI - Math.PI/2, da = Math.PI / n * 0.35;
+    pos.push([cx + r1*Math.cos(a-da), cy + r1*Math.sin(a-da)]);
+    pos.push([cx + r1*Math.cos(a+da), cy + r1*Math.sin(a+da)]);
+  }
+  // automater placeras vid medelvinkeln för sina variabler, sedan jämnt fördelade i den ordningen
+  const ang = L.clauses.map((c, i) => {
+    let sx = 0, sy = 0;
+    for (const lit of c) { const a = (Math.abs(lit) - 0.5) / n * 2*Math.PI; sx += Math.cos(a); sy += Math.sin(a); }
+    return [Math.atan2(sy, sx), i];
+  }).sort((a, b) => a[0] - b[0]);
+  const cpos = new Array(m);
+  ang.forEach(([a0, i], k) => { const a = k / m * 2*Math.PI + ang[0][0] - Math.PI/2;
+    const rr = r2 + (k % 2) * 25; cpos[i] = [cx + rr*Math.cos(a), cy + rr*Math.sin(a)]; });
+  return { ...L, pos: pos.concat(cpos) };
+});
+const slider = document.getElementById('slider');
+slider.max = TRACE.frames.length - 1;
+let idx = 0, playing = false;
+function draw(i) {
+  const f = TRACE.frames[i], L = layouts[f.L], P = L.pos, n = L.n_vars;
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.lineCap = 'round';
+  L.edges.forEach(([a, b], e) => {
+    const w = f.ph[e];
+    ctx.strokeStyle = w ? CH[f.ch[e]] : css('--edge');
+    ctx.globalAlpha = w ? 0.25 + w/12 : 0.12;
+    ctx.lineWidth = w ? 0.5 + w*0.7 : 0.5;
+    ctx.beginPath(); ctx.moveTo(...P[a]); ctx.lineTo(...P[b]); ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = css('--nest');
+  ctx.beginPath(); ctx.arc(...P[0], 28, 0, 2*Math.PI); ctx.fill();
+  for (let v = 0; v < n; v++) {
+    const val = f.val[v] === '1';
+    [[1 + 2*v, true], [2 + 2*v, false]].forEach(([k, sign]) => {
+      const r = 6 + Math.sqrt(f.clay[k-1]) * 3;
+      ctx.strokeStyle = ctx.fillStyle = sign ? css('--true') : css('--false');
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(...P[k], r, 0, 2*Math.PI);
+      if (val === sign) ctx.fill(); else ctx.stroke();
+    });
+  }
+  const base = 1 + 2*n;
+  L.clauses.forEach((c, j) => {
+    const k = base + j, s = f.sat[j] === '1';
+    ctx.fillStyle = s ? css('--sat') : css('--unsat');
+    ctx.beginPath(); ctx.arc(...P[k], 7, 0, 2*Math.PI); ctx.fill();
+  });
+  const ant = css('--ant'), food = css('--food');
+  for (let k = 0; k < P.length; k++) {
+    const cnt = f.ants[k]; if (!cnt) continue;
+    const car = f.carry[k];
+    for (let a = 0; a < Math.min(cnt, 40); a++) {
+      const th = a * 2.399, rr = (k === 0 ? 32 : 10) + Math.sqrt(a) * 4;
+      const x = P[k][0] + rr*Math.cos(th), y = P[k][1] + rr*Math.sin(th);
+      ctx.fillStyle = ant; ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 2*Math.PI); ctx.fill();
+      if (a < car) { ctx.strokeStyle = food; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, 4, 0, 2*Math.PI); ctx.stroke(); }
+    }
+  }
+  const nsat = [...f.sat].filter(x => x === '1').length;
+  document.getElementById('problem').textContent = L.problem;
+  document.getElementById('s-t').textContent = f.t;
+  document.getElementById('s-level').textContent = f.level;
+  document.getElementById('s-pop').textContent = f.pop;
+  document.getElementById('s-store').textContent = f.store;
+  document.getElementById('s-sat').textContent = `${nsat}/${f.sat.length}`;
+  document.getElementById('val').textContent = f.val;
+}
+slider.oninput = () => { idx = +slider.value; draw(idx); };
+document.getElementById('play').onclick = e => { playing = !playing; e.target.textContent = playing ? '❚❚' : '▶'; };
+setInterval(() => { if (!playing) return; idx = Math.min(TRACE.frames.length - 1, idx + +document.getElementById('speed').value);
+  slider.value = idx; draw(idx); if (idx === TRACE.frames.length - 1) { playing = false; document.getElementById('play').textContent = '▶'; } }, 60);
+draw(0);
+</script>
+</body>
+</html>
