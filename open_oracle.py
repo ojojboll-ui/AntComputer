@@ -54,9 +54,9 @@ def optimum(p):
 
 
 def job(args):
-    idx, label, path, budget, seed = args
+    idx, label, path, budget, seed, overrides = args
     p = catalog()[idx]
-    params = Params()
+    params = Params(**overrides)
     rng = np.random.default_rng(seed)
     founders = None
     if path:
@@ -91,6 +91,16 @@ def job(args):
                 late_sat=statistics.mean(sats_q) / m if sats_q else None)
 
 
+def parse_params(items):
+    out = {}
+    for it in items or []:
+        k, v = it.split("=", 1)
+        if not hasattr(Params(), k):
+            raise SystemExit(f"okänd parameter: {k}")
+        out[k] = type(getattr(Params(), k))(v)
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--name", required=True)
@@ -98,12 +108,16 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--only", default="", help="kör bara problem vars namn innehåller texten")
     ap.add_argument("--workers", type=int, default=os.cpu_count())
+    ap.add_argument("--param", action="append", help="NAMN=VÄRDE, ändra en vikt i världen")
+    ap.add_argument("--genomes", nargs="*", help="bara dessa arvsmassor (namn ur GENOMES)")
     a = ap.parse_args()
+    overrides = parse_params(a.param)
 
     probs = catalog()
     idxs = [i for i, p in enumerate(probs) if a.only.lower() in p.name.lower()]
-    genomes = {k: v for k, v in GENOMES.items() if v is None or Path(v).exists()}
-    jobs = [(i, k, v, a.budget, a.seed) for i in idxs for k, v in genomes.items()]
+    genomes = {k: v for k, v in GENOMES.items() if (v is None or Path(v).exists())
+               and (not a.genomes or k in a.genomes)}
+    jobs = [(i, k, v, a.budget, a.seed, overrides) for i in idxs for k, v in genomes.items()]
     jobs.sort(key=lambda j: -len(probs[j[0]].clauses))  # stora först, för jämnare last
     results = []
     with Pool(a.workers) as pool:

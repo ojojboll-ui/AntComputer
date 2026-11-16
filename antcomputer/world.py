@@ -56,6 +56,7 @@ class Params:
     lifespan: int = 1500
     lifespan_jitter: int = 500
     food_full: float = 6.0          # matflöde per tick när alla krav är uppfyllda
+    food_per_clause: float = 0.0    # extra matflöde per krav, så att stora problem kan föda fler myror
     food_cap: float = 5.0           # max mat i en automat
     sat_floor: float = 0.8          # under denna andel uppfyllda krav: ingen mat alls
     sat_power: float = 2.0
@@ -452,7 +453,7 @@ class Colony:
             gain *= p.full_bonus
         cn = g.clause_node
         if sat.any():
-            self.food[cn[sat]] += p.food_full * gain / sat.sum()
+            self.food[cn[sat]] += (p.food_full + p.food_per_clause * len(sat)) * gain / sat.sum()
         self.food[cn[~sat]] *= p.food_rot
         np.minimum(self.food, p.food_cap, out=self.food)
         self.pher *= (1 - p.pher_evap)
