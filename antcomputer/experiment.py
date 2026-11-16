@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 
 from .baselines import benchmark
-from .oracle import ORACLES
+from .oracle import ORACLES, Progressive
 from .world import IN_NAMES, OUT_NAMES, Colony, Params, prior_genome
 
 
@@ -29,6 +29,11 @@ class Config:
     trace_max_frames: int = 3000
     baseline_runs: int = 20
     out_dir: str = "runs"
+    # progressivt orakel: problemet avslöjas under räkningens gång
+    reveal: str = "off"            # off | natural | random | adversarial | friendly
+    reveal_step: float = 0.1       # andel av kraven per avslöjande (när problemet saknar naturliga steg)
+    reveal_at: float = 1.0         # andel synliga krav som måste hålla innan fler avslöjas
+    reveal_bonus: float = 10.0     # mat som belöning vid varje avslöjande
     params: Params = field(default_factory=Params)
 
 
@@ -36,7 +41,7 @@ class Experiment:
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
         self.rng = np.random.default_rng(cfg.seed)
-        self.oracles = [ORACLES[cfg.oracle](seed=cfg.seed) for _ in range(cfg.colonies)]
+        self.oracles = [self._make_oracle() for _ in range(cfg.colonies)]
         self.colonies = [Colony(o.problem, cfg.params, np.random.default_rng(cfg.seed * 1000 + i))
                          for i, o in enumerate(self.oracles)]
         self.hold = [0] * cfg.colonies
@@ -50,6 +55,17 @@ class Experiment:
         self._trace_problem = None
         self.dir = Path(cfg.out_dir) / cfg.name
         self.dir.mkdir(parents=True, exist_ok=True)
+
+    def _make_oracle(self):
+        base = ORACLES[self.cfg.oracle](seed=self.cfg.seed)
+        if self.cfg.reveal == "off":
+            return base
+        return Progressive(base, order=self.cfg.reveal, step=self.cfg.reveal_step,
+                           reveal_at=self.cfg.reveal_at, seed=self.cfg.seed)
+
+    @staticmethod
+    def _full(orc):
+        return getattr(orc, "full", orc.problem)
 
     @staticmethod
     def _empty_window() -> dict:
@@ -76,9 +92,14 @@ class Experiment:
                 w["ticks"] += 1
                 self.since[i]["flips"] += s["flips"]
                 self.income[i] += s["delivered"]
-                self.hold[i] = self.hold[i] + 1 if s["all_sat"] else 0
+                orc = self.oracles[i]
+                ok = s["all_sat"] if orc.complete() else s["sat_frac"] >= orc.threshold() - 1e-9
+                self.hold[i] = self.hold[i] + 1 if ok else 0
                 if self.hold[i] >= cfg.solve_hold:
-                    self._solved(i, t)
+                    if orc.complete():
+                        self._solved(i, t)
+                    else:
+                        self._revealed(i, t)
                 if col.population == 0:
                     self._extinct(i, t)
                 if t % cfg.log_every == 0:
@@ -88,20 +109,35 @@ class Experiment:
             if cfg.trace_every and t % cfg.trace_every == 0 and len(self.trace["frames"]) < cfg.trace_max_frames:
                 self._record(t)
             if t % 2000 == 0:
-                lv = [o.level for o in self.oracles]
+                lv = [o.level if o.complete() and cfg.reveal == "off" else f"{o.level}:{o.progress():.0%}"
+                      for o in self.oracles]
                 pops = [c.population for c in self.colonies]
                 sats = [round(float(c.sat.mean()), 3) for c in self.colonies]
                 print(f"[t={t}] nivåer={lv} befolkning={pops} uppfyllt={sats} ({time.time() - t0:.0f}s)", flush=True)
         return self._finish(time.time() - t0)
 
+    def _revealed(self, i: int, t: int) -> None:
+        col, orc = self.colonies[i], self.oracles[i]
+        before = len(orc.problem.clauses)
+        sat_hidden = self._full(orc).n_satisfied(col.assignment())
+        new = orc.reveal(col.assignment())
+        col.store += self.cfg.reveal_bonus
+        col.set_problem(new)
+        self.hold[i] = 0
+        self.event(type="reveal", tick=t, colony=i, level=orc.level, revealed=len(new.clauses),
+                   total=len(self._full(orc).clauses), was=before,
+                   # hur många av ALLA krav (även dolda) det nuvarande svaret redan uppfyller
+                   full_satisfied=sat_hidden)
+
     def _solved(self, i: int, t: int) -> None:
         col, orc = self.colonies[i], self.oracles[i]
         asg = col.assignment()
-        ok, answer = orc.problem.verify(asg)
-        self.event(type="solved", tick=t, colony=i, level=orc.level, problem=orc.problem.name,
+        full = self._full(orc)
+        ok, answer = full.verify(asg)
+        self.event(type="solved", tick=t, colony=i, level=orc.level, problem=full.name,
                    verified=ok, answer=answer, ticks_used=t - self.since[i]["tick"],
                    flips_used=self.since[i]["flips"], population=col.population)
-        self.solved_problems.setdefault(orc.problem.name, orc.problem)
+        self.solved_problems.setdefault(full.name, full)
         col.store += col.p.jackpot
         new = orc.advance(asg)
         col.set_problem(new)
@@ -113,7 +149,7 @@ class Experiment:
     def _extinct(self, i: int, t: int) -> None:
         alive = [j for j, c in enumerate(self.colonies) if c.population > 0]
         if alive:
-            donor = max(alive, key=lambda j: (self.oracles[j].level, self.income[j]))
+            donor = max(alive, key=lambda j: (self.oracles[j].level, self.oracles[j].progress(), self.income[j]))
             genomes = self.colonies[donor].living_genomes()
             reps = math.ceil(self.cfg.params.pop_init / len(genomes))
             self.colonies[i].reseed(np.tile(genomes, (reps, 1, 1)))
@@ -124,7 +160,8 @@ class Experiment:
             self.event(type="extinct", tick=t, colony=i, reseeded_from="prior")
 
     def _migrate(self, t: int) -> None:
-        score = [(self.oracles[i].level, self.income[i]) for i in range(len(self.colonies))]
+        score = [(self.oracles[i].level, self.oracles[i].progress(), self.income[i])
+                 for i in range(len(self.colonies))]
         best = max(range(len(score)), key=lambda i: score[i])
         worst = min(range(len(score)), key=lambda i: score[i])
         if best != worst and self.colonies[best].population > 0:
@@ -139,7 +176,8 @@ class Experiment:
         d = max(w["deposits"], 1)
         col = self.colonies[i]
         self.series.append(dict(
-            tick=t, colony=i, level=self.oracles[i].level, pop=s["pop"], store=s["store"],
+            tick=t, colony=i, level=self.oracles[i].level, progress=round(self.oracles[i].progress(), 3),
+            pop=s["pop"], store=s["store"],
             sat_frac=round(s["sat_frac"], 4), delivered=w["delivered"], flips=w["flips"],
             deposits=w["deposits"], removals=w["removals"],
             # "reparationsfokus": hur mycket oftare lera hamnar i en kammare som skulle
@@ -176,8 +214,9 @@ class Experiment:
         print("Kör jämförelsealgoritmer ...", flush=True)
         bench = {name: benchmark(p, runs=cfg.baseline_runs) for name, p in self.solved_problems.items()}
         for o in self.oracles:  # även det olösta problemet som kolonierna fastnade på
-            if o.problem.name not in bench:
-                bench[o.problem.name] = benchmark(o.problem, runs=cfg.baseline_runs)
+            f = self._full(o)
+            if f.name not in bench:
+                bench[f.name] = benchmark(f, runs=cfg.baseline_runs)
 
         # genetisk drift: vilka gener har förändrats mest jämfört med medfödd instinkt?
         start = prior_genome() if cfg.params.prior else np.zeros_like(prior_genome())
@@ -197,7 +236,11 @@ class Experiment:
             np.save(self.dir / f"genomes_colony{i}.npy", G)
 
         summary = dict(config=dict(cfg.__dict__, params=cfg.params.to_dict()), seconds=round(seconds, 1),
-                       levels=[o.level for o in self.oracles], events=self.events,
+                       levels=[o.level for o in self.oracles],
+                       progress=[round(o.progress(), 4) for o in self.oracles],
+                       full_satisfied=[self._full(o).n_satisfied(c.assignment()) for o, c in zip(self.oracles, self.colonies)],
+                       full_clauses=[len(self._full(o).clauses) for o in self.oracles],
+                       events=self.events,
                        baselines=bench, gene_drift=genes)
         (self.dir / "summary.json").write_text(json.dumps(summary, indent=1, ensure_ascii=False, default=str))
         with open(self.dir / "timeseries.csv", "w", newline="") as f:
@@ -221,7 +264,10 @@ class Experiment:
         L = [f"# Körning `{cfg.name}`", "",
              f"Orakel: **{cfg.oracle}**, {cfg.colonies} kolonier, {cfg.ticks} tick, frö {cfg.seed}, "
              f"evolution {'på' if cfg.params.evolution else 'AV'} (urval: {cfg.params.selection}), "
-             f"förvarning vid byte {'på' if cfg.params.announce_changes else 'av'}. Tid: {s['seconds']} s.", "",
+             f"förvarning vid byte {'på' if cfg.params.announce_changes else 'av'}, "
+             f"progressivt avslöjande: **{cfg.reveal}**"
+             + (f" (avslöja vid {cfg.reveal_at:.0%} uppfyllt)" if cfg.reveal != "off" else "")
+             + f". Tid: {s['seconds']} s.", "",
              f"Uppnådda nivåer per koloni: {s['levels']}", "", "## Lösta problem", "",
              "| tick | koloni | problem | svar | verifierat | myr-flips | WalkSAT | slumpvandring | blind slump |",
              "|---|---|---|---|---|---|---|---|---|"]
@@ -239,8 +285,21 @@ class Experiment:
               f"över {cfg.baseline_runs} körningar (— = löste inte hälften inom gränsen).", "",
               "## Var kolonierna slutade", ""]
         for i, (o, c) in enumerate(zip(self.oracles, self.colonies)):
+            f = self._full(o)
             L.append(f"- Koloni {i}: nivå {o.level}, {o.problem.name}, befolkning {c.population}, "
-                     f"{int(c.sat.sum())}/{len(c.sat)} krav uppfyllda")
+                     f"{int(c.sat.sum())}/{len(c.sat)} synliga krav uppfyllda, "
+                     f"{f.n_satisfied(c.assignment())}/{len(f.clauses)} av hela problemet")
+        reveals = [e for e in s["events"] if e["type"] == "reveal"]
+        if reveals:
+            L += ["", "## Avslöjanden", "",
+                  "*Hela problemet uppfyllt* visar hur stor del av även de dolda kraven kolonins svar redan "
+                  "klarade när nästa steg avslöjades. Om den siffran stiger snabbare än det synliga har kolonin "
+                  "\"gissat rätt\" om det den inte sett.", "",
+                  "| tick | koloni | nivå | synligt före → efter | av totalt | hela problemet uppfyllt |",
+                  "|---|---|---|---|---|---|"]
+            for e in reveals[:200]:
+                L.append(f"| {e['tick']} | {e['colony']} | {e['level']} | {e['was']} → {e['revealed']} | {e['total']} | "
+                         f"{e['full_satisfied']}/{e['total']} |")
         L += ["", "## Beteendets fingeravtryck (sista tiondelen av körningen)", "",
               "*Reparationsfokus* > 1 betyder att leran oftare än slumpen läggs där den lagar ett brutet krav "
               "(det är kärnan i WalkSAT). Andelar visar *vem* som bygger.", "",

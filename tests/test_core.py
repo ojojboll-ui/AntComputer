@@ -7,7 +7,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from antcomputer.baselines import walksat  # noqa: E402
-from antcomputer.oracle import GrowingSAT  # noqa: E402
+from antcomputer.oracle import Factoring, GrowingSAT, Progressive  # noqa: E402
 from antcomputer.problems import factoring, planted_3sat  # noqa: E402
 from antcomputer.world import Colony, Params  # noqa: E402
 
@@ -46,6 +46,25 @@ def test_colony_runs_and_conserves_shapes():
     for _ in range(50):
         c.step()
     assert len(c.val) == 12
+
+
+def test_progressive_reveals_everything_and_verifies():
+    for order in Progressive.ORDERS:
+        o = Progressive(Factoring(), order=order)
+        P = o.full
+        cb, a, b = P.meta["builder"], P.meta["p_vars"], P.meta["q_vars"]
+        inp = {v: bool((3 >> i) & 1) for i, v in enumerate(a)}
+        inp.update({v: bool((5 >> i) & 1) for i, v in enumerate(b)})
+        sol = cb.evaluate(inp)
+        sizes = [len(o.problem.clauses)]
+        while not o.complete():
+            assert P.is_model(sol)  # en riktig lösning uppfyller alltid varje synligt steg
+            o.reveal([False] * P.n_vars)
+            sizes.append(len(o.problem.clauses))
+        assert sizes == sorted(sizes) and sizes[-1] == len(P.clauses)
+        assert o.problem.verify(sol)[0]
+        o.advance(sol)
+        assert o.full.meta["N"] == 21 and not o.complete()
 
 
 if __name__ == "__main__":

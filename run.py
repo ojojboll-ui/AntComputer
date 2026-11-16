@@ -22,6 +22,10 @@ def main() -> None:
     ap.add_argument("--colonies", type=int, default=4)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--migrate-every", type=int, default=1000, help="ö-selektion mellan kolonier")
+    ap.add_argument("--reveal", default="off", choices=["off", "natural", "random", "adversarial", "friendly"],
+                    help="progressivt orakel: avslöja problemet under räkningens gång")
+    ap.add_argument("--reveal-at", type=float, default=1.0, help="andel synliga krav som måste hålla före nästa steg")
+    ap.add_argument("--reveal-step", type=float, default=0.1, help="andel krav per steg (om problemet saknar naturliga steg)")
     ap.add_argument("--trace-every", type=int, default=10, help="0 stänger av inspelningen")
     ap.add_argument("--baseline-runs", type=int, default=20)
     ap.add_argument("--announce-changes", action="store_true", help="förvarna myrorna när problemet byts")
@@ -41,7 +45,8 @@ def main() -> None:
         setattr(params, k, cast(v))
 
     cfg = Config(name=a.name, oracle=a.oracle, ticks=a.ticks, colonies=a.colonies, seed=a.seed, migrate_every=a.migrate_every,
-                 trace_every=a.trace_every, baseline_runs=a.baseline_runs, params=params)
+                 trace_every=a.trace_every, reveal=a.reveal, reveal_at=a.reveal_at,
+                 reveal_step=a.reveal_step, baseline_runs=a.baseline_runs, params=params)
     Experiment(cfg).run()
 
 

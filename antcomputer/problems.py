@@ -97,6 +97,8 @@ class CircuitBuilder:
         self.n = 0
         self.clauses: list[tuple[int, ...]] = []
         self.gates: list[tuple[int, Callable[..., bool], tuple[int, ...]]] = []
+        self.gate_clauses: dict[int, list[tuple[int, ...]]] = {}
+        self.gate_inputs: dict[int, tuple[int, ...]] = {}
 
     def new_var(self) -> int:
         self.n += 1
@@ -105,12 +107,30 @@ class CircuitBuilder:
     def gate(self, fn: Callable[..., bool], inputs: tuple[int, ...]) -> int:
         """Ny variabel z med z <-> fn(inputs), via sanningstabell."""
         z = self.new_var()
+        own = []
         for vals in itertools.product([False, True], repeat=len(inputs)):
             out = fn(*vals)
             clause = tuple((-x if v else x) for x, v in zip(inputs, vals)) + ((z,) if out else (-z,))
             self.clauses.append(clause)
+            own.append(clause)
         self.gates.append((z, fn, inputs))
+        self.gate_clauses[z] = own
+        self.gate_inputs[z] = inputs
         return z
+
+    def cone(self, var: int) -> list[int]:
+        """Alla grindar som påverkar `var`, i topologisk ordning."""
+        seen, order = set(), []
+
+        def visit(v: int) -> None:
+            if v in seen or v not in self.gate_inputs:
+                return
+            seen.add(v)
+            for u in self.gate_inputs[v]:
+                visit(u)
+            order.append(v)
+        visit(var)
+        return order
 
     def evaluate(self, inputs: dict[int, bool]) -> list[bool]:
         val = dict(inputs)
@@ -153,7 +173,12 @@ def factoring(N: int, bits: Optional[int] = None) -> Problem:
     for j in range(bits):
         row: list[Optional[int]] = [None] * j + [cb.gate(lambda x, y: x and y, (a[i], b[j])) for i in range(bits)]
         acc = _add_bits(cb, acc, row)
-    clauses = list(cb.clauses)
+    # Klausulerna ordnas i naturliga steg: steg k innehåller kretsen som bestämmer
+    # produktens bit k plus kravet att den biten är lika med N:s bit k.
+    # Ett progressivt orakel kan då avslöja svaret siffra för siffra.
+    clauses: list[tuple[int, ...]] = [tuple(sorted(a[1:])), tuple(sorted(b[1:]))]  # p >= 2, q >= 2
+    stages = [len(clauses)]
+    included: set[int] = set()
     width = max(len(acc), N.bit_length())
     for i in range(width):
         want = (N >> i) & 1
@@ -162,11 +187,18 @@ def factoring(N: int, bits: Optional[int] = None) -> Problem:
             if want:
                 raise ValueError("för få bitar för N")
             continue
+        for z in cb.cone(lit):
+            if z not in included:
+                included.add(z)
+                clauses += [tuple(sorted(c)) for c in cb.gate_clauses[z]]
         clauses.append((lit,) if want else (-lit,))
-    clauses.append(tuple(a[1:]))  # p >= 2
-    clauses.append(tuple(b[1:]))  # q >= 2
-    # ta bort dubbletter men behåll ordning
-    clauses = list(dict.fromkeys(tuple(sorted(c)) for c in clauses))
+        stages.append(len(clauses))
+    for z in cb.gate_clauses:  # grindar som inte påverkar någon bit (bör inte finnas)
+        if z not in included:
+            clauses += [tuple(sorted(c)) for c in cb.gate_clauses[z]]
+    clauses = list(dict.fromkeys(clauses))
+    stages = [min(x, len(clauses)) for x in stages]
+    stages[-1] = len(clauses)
 
     def decode(asg: list[bool]) -> tuple[int, int]:
         p = sum(1 << i for i, v in enumerate(a) if asg[v - 1])
@@ -178,7 +210,8 @@ def factoring(N: int, bits: Optional[int] = None) -> Problem:
         return (p * q == N and p > 1 and q > 1), f"{N} = {p} x {q}"
 
     return Problem(f"faktorisera {N}", cb.n, clauses, verify,
-                   meta={"N": N, "bits": bits, "p_vars": a, "q_vars": b, "builder": cb, "decode": decode})
+                   meta={"N": N, "bits": bits, "p_vars": a, "q_vars": b, "builder": cb, "decode": decode,
+                         "stages": stages})
 
 
 def semiprimes(start: int = 15, limit: int = 10**9):

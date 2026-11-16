@@ -64,6 +64,29 @@ Exempel finns i [`examples/`](examples/).
 | `enumerate` | 3-SAT med många lösningar | varje funnen lösning förbjuds: hitta en till |
 | `factor` | hitta p, q > 1 med p·q = N, kodat som en multiplikationskrets | nästa halvprimtal: 15, 21, 22, 25, 26, … |
 
+### Progressivt orakel: problemet visar sig under räkningens gång
+
+Med `--reveal` döljs större delen av problemet. Kolonin ser bara de krav som
+avslöjats hittills. När den har hållit dem uppfyllda (eller en andel `--reveal-at`
+av dem) i 20 tick avslöjar oraklet nästa steg, med lite bonusmat. Problemet räknas
+som löst först när allt är avslöjat och uppfyllt.
+
+| `--reveal` | vad som avslöjas härnäst |
+|---|---|
+| `off` | allt syns från början (förval) |
+| `natural` | problemets egen ordning. För faktorisering: **svaret siffra för siffra**, produktens lägsta bit först tillsammans med kretsen som räknar ut den |
+| `random` | slumpade krav |
+| `adversarial` | krav som kolonins nuvarande svar bryter mot (oraklet som motståndare) |
+| `friendly` | krav som kolonins svar redan uppfyller (oraklet som snäll lärare) |
+
+Rapporten visar för varje avslöjande hur många av *alla* krav, även de dolda, kolonins
+svar redan uppfyllde. Svep över många frön görs med `sweep.py`:
+
+```bash
+python sweep.py --name reveal-sat --oracle sat --seeds 6 --ticks 30000
+python sweep.py --name reveal-factor --oracle factor --seeds 6 --ticks 30000
+```
+
 Regelbyten är tysta som förval, så myrorna märker bara att maten tar slut. Med
 `--announce-changes` får de en larmsignal som klingar av.
 
