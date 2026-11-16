@@ -17,7 +17,7 @@ from antcomputer.world import Params
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--name", default="run")
-    ap.add_argument("--oracle", default="sat", choices=["sat", "enumerate", "factor"])
+    ap.add_argument("--oracle", default="sat", choices=["sat", "enumerate", "factor", "fresh"])
     ap.add_argument("--ticks", type=int, default=20000)
     ap.add_argument("--colonies", type=int, default=4)
     ap.add_argument("--seed", type=int, default=1)

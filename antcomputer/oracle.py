@@ -95,7 +95,26 @@ class Factoring(Oracle):
         return factoring(next(self.gen))
 
 
-ORACLES = {"sat": GrowingSAT, "enumerate": Enumerate, "factor": Factoring}
+class FreshSAT(Oracle):
+    """Varje lösning belönas med ett HELT NYTT problem, som långsamt blir större.
+
+    Kolonin kan inte memorera ett svar. Det enda som lönar sig över tid är en
+    strategi som fungerar på problem den aldrig sett, alltså en algoritm.
+    """
+    kind = "fresh"
+
+    def __init__(self, seed: int = 0, n0: int = 10, dn: int = 2, n_max: int = 40, ratio: float = 4.26) -> None:
+        self.n0, self.dn, self.n_max, self.ratio = n0, dn, n_max, ratio
+        super().__init__(seed)
+
+    def first(self) -> Problem:
+        return planted_3sat(self.n0, self.ratio, self.rng)
+
+    def next(self, solution: list[bool]) -> Problem:
+        return planted_3sat(min(self.n_max, self.n0 + self.dn * self.level), self.ratio, self.rng)
+
+
+ORACLES = {"sat": GrowingSAT, "enumerate": Enumerate, "factor": Factoring, "fresh": FreshSAT}
 
 
 class Progressive(Oracle):

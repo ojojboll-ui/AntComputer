@@ -43,7 +43,7 @@ def job(args):
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--name", required=True)
-    ap.add_argument("--oracle", default="sat", choices=["sat", "enumerate", "factor"])
+    ap.add_argument("--oracle", default="sat", choices=["sat", "enumerate", "factor", "fresh"])
     ap.add_argument("--modes", nargs="+", default=["off", "natural", "random", "adversarial", "friendly"])
     ap.add_argument("--seeds", type=int, default=6)
     ap.add_argument("--ticks", type=int, default=30000)
