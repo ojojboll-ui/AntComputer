@@ -245,6 +245,27 @@ arvsmassor, 40 000 tick var, ett frö. Hela tabellen finns i `examples/oppet-ora
 * **Många kolonier dog ut (†).** Ekonomin är byggd för 3-SAT. På problem med många långa krav
   räckte maten inte, så vikterna i ekonomin behöver justeras per problemfamilj.
 
+### Vikter mot krav (`weights.py`)
+
+Hela katalogen med 10 uppsättningar av ekonomins vikter, två arvsmassor (evolverad och handgjord),
+20 000 tick, ett frö (`examples/vikter-mot-krav.md`). Siffror: lösta lösbara (av 22) · omöjliga där
+bästa möjliga nåddes (av 20) · utdöda kolonier (av 42).
+
+| vikter | lösta | bästa möjliga | utdöda |
+|---|---|---|---|
+| billig myra (halv förbrukning och födelsekostnad) | 11 | 14 | 7 |
+| mat från 60 % uppfyllt | 10 | 15 | 7 |
+| **mat per krav 0,05 + från 60 %** | 9 | 14 | **0** |
+| standard | 8 | 14 | 12 |
+| mat först från 90 % | 5 | 11 | 31 |
+
+* **Vikterna avgör om kolonin överlever, inte om den löser.** Antalet lösta ligger mellan 7 och 11
+  för alla rimliga vikter, vilket är inom bruset för ett frö. Mat per krav plus mat redan från
+  60 % tog bort all utdöing utan att lösningarna blev färre.
+* **För hårt krav på mat dödar.** Mat först vid 90 % uppfyllt gav 31 utdöda kolonier av 42.
+* **Slutsats:** flaskhalsen är inte ekonomin. Den rätta vikten för överlevnad är lätt att hitta, men
+  den gör inte myrorna smartare. Det som verkligen flyttade resultaten var inlärning under livet.
+
 ## Vägen mot oraklet
 
 1. **Statistik:** kör många frön per inställning och jämför med kontrollgruppen.
