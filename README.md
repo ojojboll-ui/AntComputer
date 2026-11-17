@@ -250,8 +250,34 @@ Samma test **med** inlärning påslagen (`scaling.py --learning`,
   Baldwin-drottningen selekterades för att *kunna lära sig*, och det är just det som lönar sig här.
 * Båda är fortfarande långt efter WalkSAT, som löser alla med 12 till 179 flips.
 
-Kombinationerna (Baldwin + kultur, Lamarck + kultur, kultur + kulturarv, alla tre) körs efter
-viktsvepet, se `pipeline_queue.sh`.
+### Kombinationer av inlärning och kultur
+
+Samma uppsättning, 50 generationer, ett frö (`examples/jamforelse-alla-lagen.md`).
+
+| läge | nådde storlek | lösta totalt | andel som löser (sista 10 gen) | reparationsfokus |
+|---|---|---|---|---|
+| **Baldwin** | **n = 28** | **510** | **41 %** | 2,08 |
+| Lamarck | n = 26 | 381 | 30 % | 2,25 |
+| Baldwin + kultur + kulturarv | n = 18 | 335 | 19 % | 1,13 |
+| Baldwin + kultur | n = 18 | 307 | 19 % | 0,84 |
+| kultur + kulturarv | n = 24 | 302 | 21 % | 1,31 |
+| Lamarck + kultur | n = 18 | 197 | 4 % | 0,03 |
+| bara gener | n = 18 | 183 | 7 % | 0,35 |
+| kultur | n = 18 | 175 | 8 % | 0,58 |
+
+* **Kultur gör inlärningen sämre.** Baldwin + kultur löste 40 % färre problem än Baldwin ensam,
+  och Lamarck + kultur tappade nästan all reparation (0,03). När myrorna härmar grannen som har
+  det bäst skrivs det de själva lärt sig över. Den som har mest mat är oftast den som står vid
+  ett krav som redan fungerar, inte den som just reparerat ett trasigt. Kulturen sprider alltså
+  fel lärdom.
+* **Kulturarv hjälper kulturen.** Kultur ensam gav ingenting, men när en ny koloni ärver
+  mor-kolonins vanor nådde den 24 variabler och löste 302 problem. Det är nästan lika mycket som
+  Baldwin + kultur. Kulturen behöver kunna byggas på över generationer för att göra nytta, ungefär
+  som hos människor.
+* **Den bästa kombinationen är den enklaste:** gener plus egen inlärning under livet, utan att
+  härma andra.
+* Ett frö per läge, så rangordningen i mitten av tabellen är osäker. Skillnaden mellan Baldwin
+  och resten är däremot stor.
 
 ## Det öppna oraklet: kända problem, okänt svar (`open_oracle.py`)
 
