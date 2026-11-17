@@ -188,8 +188,37 @@ På 10 variabler löste de evolverade 4 av 6 problem mot 2 av 6 för instinktmyr
 instinkter behövde 156 flips i median, nära den handgjorda regelns 90. Vid 20 variabler och uppåt
 löser de nästan inget, och den handgjorda regeln är fortfarande bäst.
 
-Jämförelser med inlärning under livet (Baldwin), ärftlig inlärning (Lamarck), kultur och kulturarv
-mellan kolonier pågår, se `evolve.py --mode` och `compare_evo.py`.
+### Inlärning under livet, Lamarck och kultur
+
+Samma uppsättning, 50 generationer, ett frö per läge (`examples/jamforelse-lagen.md`).
+
+| läge | nådde storlek | lösta problem totalt | andel som löser (sista 10 gen) | reparationsfokus |
+|---|---|---|---|---|
+| bara gener | n = 18 | 183 | 7 % | 0,35 |
+| bara gener, utan instinkter | n = 16 | 151 | 2 % | 0,87 |
+| kultur (härma den bästa grannen) | n = 18 | 175 | 8 % | 0,58 |
+| **Baldwin** (lär sig under livet, ärvs inte) | **n = 28** | **510** | **41 %** | **2,08** |
+| **Lamarck** (det inlärda skrivs in i generna) | n = 26 | 381 | 30 % | 2,25 |
+
+* **Inlärning under livet nästan tredubblar antalet lösta problem** och tar kolonierna till
+  28 variabler, mot 18 för bara gener.
+* **Baldwin-effekten syns i generna.** I Baldwin-läget ärvs inget av det inlärda. Ändå är bästa
+  drottningens mest förändrade gen "lägg lera när kravet jag just kom från var dött" (0 → +3,0),
+  tillsammans med en lägre grundlust att lägga lera (−2 → −3,3). Det är nästan exakt den
+  handgjorda reparationsregeln (+5 och −4). De som hade lättast att *lära sig* regeln vann, och
+  till slut blev den medfödd. Det är genetisk assimilation, som Hinton och Nowlan beskrev 1987.
+  Lamarck hittade samma regel (+2,4), och dessutom "lägg inte lera på den kammare som redan
+  vinner" (−1,4), vilket också finns i den handgjorda regeln.
+* **Lamarck var inte bättre än Baldwin.** Att skriva in det inlärda direkt i generna tar också
+  med brus från livet. Selektion på förmågan att lära verkar räcka.
+* **Kultur ensam gjorde ingen skillnad.** Att härma den som har det bäst sprider vanor, men i den
+  här världen är "den som har det bäst" ofta bara den som står närmast maten.
+* **Förbehåll:** ett frö per läge. Inlärningen belönar att komma fram till ett krav som ger mat.
+  Det är samma signal som världen redan ger, inte svaret, men den gör det lättare att upptäcka
+  att reparation lönar sig.
+
+Kombinationerna (Baldwin + kultur, Lamarck + kultur, kultur + kulturarv, alla tre) körs efter
+viktsvepet, se `pipeline_queue.sh`.
 
 ## Det öppna oraklet: kända problem, okänt svar (`open_oracle.py`)
 
