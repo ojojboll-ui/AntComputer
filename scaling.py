@@ -59,8 +59,8 @@ def satisfiable_instance(n: int, ratio: float, seed: int, max_flips: int = 2_000
             return p
 
 
-def run_ants(p: Problem, genomes, budget: int, seed: int, hold: int = 20) -> dict:
-    params = Params()
+def run_ants(p: Problem, genomes, budget: int, seed: int, hold: int = 20, learning: bool = False) -> dict:
+    params = Params(learning=learning)
     rng = np.random.default_rng(seed)
     founders = None
     if genomes is not None:
@@ -81,15 +81,15 @@ def run_ants(p: Problem, genomes, budget: int, seed: int, hold: int = 20) -> dic
 
 
 def job(args):
-    n, k, ratio, budget, genome_paths, baseline_runs = args
+    n, k, ratio, budget, genome_paths, baseline_runs, learning = args
     p = satisfiable_instance(n, ratio, seed=1000 * n + k)
     out = dict(n=n, instance=k)
     for name, fn in (("walksat", walksat), ("random_walk", random_walk)):
         res = [fn(p, max_flips=1_000_000, seed=s) for s in range(baseline_runs)]
         out[name] = statistics.median([math.inf if r is None else r for r in res])
-    out["ants_instinct"] = run_ants(p, None, budget, seed=k)
+    out["ants_instinct"] = run_ants(p, None, budget, seed=k, learning=learning)
     for label, path in genome_paths.items():
-        out[f"ants_{label}"] = run_ants(p, np.load(path), budget, seed=k)
+        out[f"ants_{label}"] = run_ants(p, np.load(path), budget, seed=k, learning=learning)
     return out
 
 
@@ -123,10 +123,11 @@ def main() -> None:
     ap.add_argument("--genomes", nargs="*", default=[], help="npy-filer med evolverad arvsmassa")
     ap.add_argument("--baseline-runs", type=int, default=10)
     ap.add_argument("--workers", type=int, default=os.cpu_count())
+    ap.add_argument("--learning", action="store_true", help="myrorna lär sig under livet (som i evolve.py --mode baldwin)")
     a = ap.parse_args()
 
     genome_paths = {Path(g).parent.name + ("" if len(a.genomes) == 1 else "_" + Path(g).stem): g for g in a.genomes}
-    jobs = [(n, k, a.ratio, a.budget, genome_paths, a.baseline_runs) for n in a.sizes for k in range(a.instances)]
+    jobs = [(n, k, a.ratio, a.budget, genome_paths, a.baseline_runs, a.learning) for n in a.sizes for k in range(a.instances)]
     results = []
     with Pool(a.workers) as pool:
         for r in pool.imap_unordered(job, jobs):

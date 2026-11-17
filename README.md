@@ -217,6 +217,23 @@ Samma uppsättning, 50 generationer, ett frö per läge (`examples/jamforelse-la
   Det är samma signal som världen redan ger, inte svaret, men den gör det lättare att upptäcka
   att reparation lönar sig.
 
+### Klarar de lärande drottningarna nya, större problem?
+
+Bästa drottningen från Baldwin och Lamarck mot den handgjorda regeln, på nya slumpade 3-SAT-problem
+(`examples/skalning-larande-utan-inlarning.md`). Testet kördes **utan** inlärning, alltså bara med
+det som blivit medfött. Lösta av 6 per storlek:
+
+| n | WalkSAT (flips) | instinkt | Baldwin | Lamarck | handgjord |
+|---|---|---|---|---|---|
+| 10 | 12 | 2 | 5 | 6 | 6 |
+| 20 | 44 | 0 | 3 | 4 | 5 |
+| 30 | 179 | 0 | 2 | 1 | 3 |
+| 40 | 158 | 0 | **2** | 0 | 0 |
+
+Baldwin-drottningen är den enda som löst något på 40 variabler, men skillnaden är 2 av 6 och
+därmed inom bruset. Den handgjorda regeln är fortfarande bäst upp till 30. Ett nytt test med
+inlärning påslagen (`scaling.py --learning`) pågår.
+
 Kombinationerna (Baldwin + kultur, Lamarck + kultur, kultur + kulturarv, alla tre) körs efter
 viktsvepet, se `pipeline_queue.sh`.
 
