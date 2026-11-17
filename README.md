@@ -231,8 +231,24 @@ det som blivit medfött. Lösta av 6 per storlek:
 | 40 | 158 | 0 | **2** | 0 | 0 |
 
 Baldwin-drottningen är den enda som löst något på 40 variabler, men skillnaden är 2 av 6 och
-därmed inom bruset. Den handgjorda regeln är fortfarande bäst upp till 30. Ett nytt test med
-inlärning påslagen (`scaling.py --learning`) pågår.
+därmed inom bruset. Den handgjorda regeln är fortfarande bäst upp till 30.
+
+Samma test **med** inlärning påslagen (`scaling.py --learning`,
+`examples/skalning-larande-med-inlarning.md`):
+
+| n | WalkSAT (flips) | instinkt | Baldwin | Lamarck | handgjord |
+|---|---|---|---|---|---|
+| 10 | 12 | 1 | 6 (46 flips) | 6 (186) | 6 (153) |
+| 20 | 44 | 0 | 4 | 1 | **6** |
+| 30 | 179 | 0 | 3 | 0 | 3 |
+| 40 | 158 | 0 | **3** | 0 | 1 |
+
+* **Baldwin-drottningen är den första evolverade arvsmassan som är jämbördig med den handgjorda
+  regeln:** 16 av 24 lösta för båda. Den är bättre på de största problemen (3 mot 1 på 40
+  variabler) och snabbare på de minsta (46 flips mot 153). Den handgjorda regeln är bättre på 20.
+* **Lamarck blev sämre med inlärning påslagen.** Dess gener är redan fulla av inlärt brus.
+  Baldwin-drottningen selekterades för att *kunna lära sig*, och det är just det som lönar sig här.
+* Båda är fortfarande långt efter WalkSAT, som löser alla med 12 till 179 flips.
 
 Kombinationerna (Baldwin + kultur, Lamarck + kultur, kultur + kulturarv, alla tre) körs efter
 viktsvepet, se `pipeline_queue.sh`.
