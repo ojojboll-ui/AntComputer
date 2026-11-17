@@ -217,6 +217,36 @@ Samma uppsättning, 50 generationer, ett frö per läge (`examples/jamforelse-la
   Det är samma signal som världen redan ger, inte svaret, men den gör det lättare att upptäcka
   att reparation lönar sig.
 
+### Fem frön: håller Baldwin-resultatet?
+
+Baldwin och bara gener med samma fem frön, alltså samma problemström parvis
+(`examples/jamforelse-fem-fron.md`).
+
+| frö | Baldwin: storlek | Baldwin: lösta | bara gener: storlek | bara gener: lösta | reparationsgenen Baldwin / bara gener |
+|---|---|---|---|---|---|
+| 1 | 28 | 510 | 18 | 183 | +3,0 / +0,1 |
+| 2 | 24 | 464 | 26 | 422 | +2,6 / +1,4 |
+| 3 | 14 | 207 | 20 | 349 | +0,2 / +1,1 |
+| 4 | 28 | 453 | 14 | 225 | +2,1 / +0,3 |
+| 5 | 32 | 593 | 14 | 239 | +2,6 / +0,3 |
+| **median** | **28** | **464** | **18** | **239** | **+2,6 / +0,3** |
+
+*Reparationsgenen* är vikten från "kravet jag kom från var dött" till "lägg lera" hos bästa
+drottningen i sista generationen. Den börjar på 0.
+
+* **Baldwin vann i 4 av 5 frön** och löste i snitt 445 problem mot 284. Men det första fröet
+  överdrev skillnaden: kontrollen där var ovanligt svag. Med fem par är skillnaden inte
+  statistiskt säker (parat t-test p ≈ 0,16, teckentest p ≈ 0,38).
+* **Reparationsregeln blir medfödd med inlärning.** Den växte till +2 eller mer i 4 av 5
+  Baldwin-körningar, och aldrig över +1,4 utan inlärning (Mann–Whitney p ≈ 0,06). Bara gener hittar
+  ibland en svagare variant av samma regel (frö 2 och 3), så inlärningen är inte det enda sättet
+  dit, men den gör vägen mycket kortare.
+* **Frö 3 är undantaget åt båda håll.** Där fastnade Baldwin och kontrollen klarade sig bättre.
+  Evolution med inlärning kan också köra fast.
+* **Ärlig sammanfattning:** inlärning under livet ger en tydlig och upprepbar förändring i
+  generna, den kända reparationsregeln. Fördelen i antal lösta problem är troligen verklig men
+  mindre än en körning antydde, och det behövs fler frön för att säga hur stor den är.
+
 ### Klarar de lärande drottningarna nya, större problem?
 
 Bästa drottningen från Baldwin och Lamarck mot den handgjorda regeln, på nya slumpade 3-SAT-problem
