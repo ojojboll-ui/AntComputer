@@ -255,6 +255,19 @@ drottningen i sista generationen. Den börjar på 0.
   Det är Baldwin-effekten i liten skala: inlärningen jämnar ut landskapet så att selektionen hittar
   toppen. När det lyckas löser kolonierna dubbelt så många problem.
 
+### Rikare hjärnor: minne (`--mem`)
+
+Hittills har myran varit en ren reflex: samma intryck ger alltid samma beteende. Med `--mem N`
+får varje myra N egna minnesceller (värden −1 till 1). Hjärnan läser dem som extra sinnen och
+skriver nya värden i dem varje tick, så den blir ett litet återkopplat nätverk som kan bära med
+sig något från förra kammaren, förra kravet eller förra varvet. Cellerna är tomma vid födseln,
+och arvsmassan har inga instinkter för dem: vad de ska betyda måste evolutionen hitta på.
+
+    python evolve.py --name evo-baldwin-mem4 --mode baldwin --mem 4
+
+Pågår: Baldwin och bara gener med 4 minnesceller, frö 1 till 10, så att de kan jämföras parvis med
+körningarna utan minne (`queue_mem.sh`).
+
 ### Klarar de lärande drottningarna nya, större problem?
 
 Bästa drottningen från Baldwin och Lamarck mot den handgjorda regeln, på nya slumpade 3-SAT-problem

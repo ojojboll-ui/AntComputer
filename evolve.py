@@ -34,7 +34,7 @@ from pathlib import Path
 
 import numpy as np
 
-from antcomputer.world import IN_NAMES, NI, NO, OUT_NAMES, Colony, Params, prior_genome
+from antcomputer.world import Colony, Params, genome_shape, in_names, out_names, prior_genome
 from scaling import satisfiable_instance
 
 
@@ -132,6 +132,7 @@ def main() -> None:
                     help="none: bara gener. baldwin: inlärning under livet, ej ärftlig. "
                          "lamarck: inlärt skrivs in i generna. culture: myrorna härmar varandra. "
                          "heritage: ny koloni ärver mor-kolonins kultur. Kombinera med +, t.ex. baldwin+culture")
+    ap.add_argument("--mem", type=int, default=0, help="antal minnesceller per myra (0 = inget minne)")
     ap.add_argument("--blank-slate", action="store_true", help="drottningarna börjar utan några instinkter")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--workers", type=int, default=os.cpu_count())
@@ -142,8 +143,9 @@ def main() -> None:
 
     flags = parse_mode(a.mode)
     rng = np.random.default_rng(a.seed)
-    base = np.zeros((NO, NI)) if a.blank_slate else prior_genome()
-    queens = base[None] + rng.normal(0, 0.3, (a.queens, NO, NI))
+    shape = genome_shape(a.mem)
+    base = np.zeros(shape) if a.blank_slate else prior_genome(a.mem)
+    queens = base[None] + rng.normal(0, 0.3, (a.queens,) + shape)
     out = Path("runs") / a.name
     out.mkdir(parents=True, exist_ok=True)
     n = a.n0
@@ -206,17 +208,18 @@ def main() -> None:
             (out / "state.json").write_text(json.dumps(dict(log=log), ensure_ascii=False))
 
     # bästa drottningens döttrar som fil för scaling.py
-    np.save(out / "best_queen_workers.npy", best_ever[None] + np.random.default_rng(0).normal(0, 0.1, (50, NO, NI)))
+    np.save(out / "best_queen_workers.npy", best_ever[None] + np.random.default_rng(0).normal(0, 0.1, (50,) + shape))
     delta = best_ever - base
     top = np.argsort(-np.abs(delta), axis=None)[:15]
-    genes = [dict(output=OUT_NAMES[o], input=IN_NAMES[i], start=round(float(base[o, i]), 2),
+    OUT, IN = out_names(a.mem), in_names(a.mem)
+    genes = [dict(output=OUT[o], input=IN[i], start=round(float(base[o, i]), 2),
                   now=round(float(best_ever[o, i]), 2))
              for o, i in (np.unravel_index(f, delta.shape) for f in top)]
     (out / "evolution.json").write_text(json.dumps(dict(args=vars(a), log=log, top_genes=genes), indent=1,
                                                    ensure_ascii=False))
     L = [f"# Evolution `{a.name}`", "",
          f"{a.queens} drottningar × {a.generations} generationer, liv {a.lifetime} tick, "
-         f"{'utan instinkter' if a.blank_slate else 'med födosöksinstinkter'}, läge **{a.mode}**, frö {a.seed}. "
+         f"{'utan instinkter' if a.blank_slate else 'med födosöksinstinkter'}, {a.mem} minnesceller, läge **{a.mode}**, frö {a.seed}. "
          f"Tid {round(time.time() - t0)} s.", "",
          "| gen | n | bästa fitness | median fitness | andel som löser | lösta totalt | överlevde | "
          "reparationsfokus bästa | median |", "|---|---|---|---|---|---|---|---|---|"]

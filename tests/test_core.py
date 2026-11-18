@@ -67,6 +67,24 @@ def test_progressive_reveals_everything_and_verifies():
         assert o.full.meta["N"] == 21 and not o.complete()
 
 
+def test_memory_brain_runs_and_old_genomes_still_work():
+    import numpy as np
+    from antcomputer.problems import planted_3sat
+    from antcomputer.world import Colony, Params, genome_shape, prior_genome
+    rng = np.random.default_rng(0)
+    import random
+    p = planted_3sat(8, 4.0, random.Random(0))
+    col = Colony(p, Params(mem=3), rng)
+    assert col.G.shape[1:] == genome_shape(3)
+    for _ in range(50):
+        col.step()
+    assert np.abs(col.mem[col.alive]).max() > 0          # minnet används
+    old = prior_genome()[None].repeat(20, axis=0)         # arvsmassa utan minne
+    col2 = Colony(p, Params(mem=3), rng, founders=old)    # formen styr, inte parametern
+    assert col2.M == 0
+    col2.step()
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

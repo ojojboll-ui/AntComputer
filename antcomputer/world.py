@@ -37,6 +37,29 @@ OUT_NAMES = [f"follow_{k}" for k in range(K)] + ["food_attr", "clay_attr", "nest
 NI, NO = len(IN_NAMES), len(OUT_NAMES)
 I = {n: i for i, n in enumerate(IN_NAMES)}
 O = {n: i for i, n in enumerate(OUT_NAMES)}
+
+
+def in_names(mem: int = 0) -> list[str]:
+    return IN_NAMES + [f"mem_{j}" for j in range(mem)]
+
+
+def out_names(mem: int = 0) -> list[str]:
+    return OUT_NAMES + [f"write_mem_{j}" for j in range(mem)]
+
+
+def genome_shape(mem: int = 0) -> tuple[int, int]:
+    """Hjärnan: (utgångar, ingångar). Minnescellerna läggs sist på båda sidor."""
+    return NO + mem, NI + mem
+
+
+def mem_of(genome: np.ndarray) -> int:
+    """Antal minnesceller i en arvsmassa, avläst ur dess form."""
+    m = genome.shape[-2] - NO
+    if m < 0 or genome.shape[-1] - NI != m:
+        raise ValueError(f"arvsmassan har fel form: {genome.shape}")
+    return m
+
+
 FOLLOW = slice(O["follow_0"], O["follow_0"] + K)
 LAY = slice(O["lay_0"], O["lay_0"] + K)
 
@@ -88,14 +111,18 @@ class Params:
     # "colony": arbetarna är sterila, bara kolonier konkurrerar (ö-selektion) - som i naturen.
     # "individual": nya myror ärver främst från de som burit hem mest mat.
     selection: str = "colony"
+    # --- minne: varje myra har `mem` egna celler (värden −1..1) som hjärnan läser och skriver.
+    # Cellerna börjar tomma vid födseln och arvsmassan har inga instinkter för dem.
+    mem: int = 0
+    mem_rate: float = 0.5           # hur snabbt en cell skrivs över (1 = direkt, mindre = mer tröghet)
 
     def to_dict(self) -> dict:
         return asdict(self)
 
 
-def prior_genome() -> np.ndarray:
-    """Medfödda födosöksinstinkter. Medvetet inget om lera: det ska de uppfinna själva."""
-    W = np.zeros((NO, NI))
+def prior_genome(mem: int = 0) -> np.ndarray:
+    """Medfödda födosöksinstinkter. Medvetet inget om lera eller minne: det ska de uppfinna själva."""
+    W = np.zeros(genome_shape(mem))
     W[O["follow_0"], I["bias"]] = 1.0
     W[O["follow_0"], I["carrying"]] = -1.0
     W[O["follow_1"], I["carrying"]] = 1.0
@@ -198,6 +225,9 @@ class Colony:
         i stället för drottningens gener. Nyfödda är ändå drottningens döttrar."""
         self.p = params
         self.queen = queen
+        given = queen if queen is not None else founders
+        self.M = mem_of(given) if given is not None else params.mem
+        self.no, self.ni = genome_shape(self.M)
         self.rng = rng
         cap = params.pop_cap
         self.alive = np.zeros(cap, dtype=bool)
@@ -208,8 +238,9 @@ class Colony:
         self.life = np.zeros(cap, dtype=np.int64)
         self.delivered = np.zeros(cap)
         self.last_empty = np.zeros(cap)
-        self.G = np.zeros((cap, NO, NI))
-        self.elig = np.zeros((cap, 2, NI))   # spår av nyliga lerbeslut (för inlärning)
+        self.G = np.zeros((cap, self.no, self.ni))
+        self.mem = np.zeros((cap, self.M))
+        self.elig = np.zeros((cap, 2, self.ni))   # spår av nyliga lerbeslut (för inlärning)
         self.prosper = np.full(cap, 0.5)     # hur ofta myran nyligen hittat levande automater
         self.reward_base = 0.5
         self.store = params.store_init
@@ -222,8 +253,8 @@ class Colony:
             if culture_seed is not None:
                 founders = culture_seed[None] + rng.normal(0, params.worker_sigma, founders.shape)
         if founders is None:
-            base = prior_genome() if params.prior else np.zeros((NO, NI))
-            founders = base[None] + rng.normal(0, 0.3, (params.pop_init, NO, NI))
+            base = prior_genome(self.M) if params.prior else np.zeros((self.no, self.ni))
+            founders = base[None] + rng.normal(0, 0.3, (params.pop_init, self.no, self.ni))
         self.founders = founders.copy()
         self._spawn(founders)
 
@@ -276,6 +307,7 @@ class Colony:
         self.last_empty[free] = 0
         self.elig[free] = 0
         self.prosper[free] = 0.5
+        self.mem[free] = 0
         self.G[free] = genomes[:k]
         if self.p.culture and self.population > k:
             # nyfödda lär av en äldre syster; de som lever där det blomstrar är förebilder oftare
@@ -331,7 +363,7 @@ class Colony:
             node = self.node[ids]
             nt = g.ntype[node]
             at_pad = nt == PAD
-            X = np.zeros((len(ids), NI))
+            X = np.zeros((len(ids), self.ni))
             X[:, I["bias"]] = 1.0
             X[:, I["carrying"]] = self.carrying[ids]
             X[:, I["food_here"]] = np.minimum(self.food[node], p.food_cap) / p.food_cap
@@ -345,7 +377,12 @@ class Colony:
             X[:, I["hunger"]] = np.clip(1 - self.store / p.store_target, 0, 1)
             X[:, I["change_signal"]] = self.signal
             X[:, I["last_clause_dead"]] = self.last_empty[ids]
+            if self.M:
+                X[:, NI:] = self.mem[ids]
             out = np.einsum("aoi,ai->ao", self.G[ids], X)
+            if self.M:
+                r = p.mem_rate
+                self.mem[ids] = (1 - r) * self.mem[ids] + r * np.tanh(out[:, NO:])
 
             # --- lera
             p_dep = sigmoid(out[:, O["deposit_clay"]])
