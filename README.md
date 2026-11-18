@@ -265,8 +265,19 @@ och arvsmassan har inga instinkter för dem: vad de ska betyda måste evolutione
 
     python evolve.py --name evo-baldwin-mem4 --mode baldwin --mem 4
 
-Pågår: Baldwin och bara gener med 4 minnesceller, frö 1 till 10, så att de kan jämföras parvis med
-körningarna utan minne (`queue_mem.sh`).
+### Större kliv (`--jumps cauchy`, `--macro`, `--immigrants`)
+
+Evolutionen har bara tagit små steg från där den står, och hittar därför bara det som ligger nära
+startpunkten. Tre sätt att låta den hoppa längre, som kan kombineras:
+
+* **Cauchy-mutationer:** oftast lika små som förut, men ibland enorma.
+* **Makromutationer:** en hel rad i hjärnan (allt som styr ett beteende) kopieras över en annan
+  eller byter plats med den, som när gener dupliceras i naturen.
+* **Invandrare:** de sämsta drottningarna ersätts varje generation av helt nya slumpade, så att
+  mångfalden inte dör ut.
+
+Pågår, i den här ordningen (`queue_mem.sh`), frö 1 till 10 för att kunna jämföras parvis:
+Baldwin med 4 minnesceller, samma med större kliv, och sist bara gener med 4 minnesceller.
 
 ### Klarar de lärande drottningarna nya, större problem?
 
