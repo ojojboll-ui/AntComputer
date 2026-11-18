@@ -217,35 +217,43 @@ Samma uppsättning, 50 generationer, ett frö per läge (`examples/jamforelse-la
   Det är samma signal som världen redan ger, inte svaret, men den gör det lättare att upptäcka
   att reparation lönar sig.
 
-### Fem frön: håller Baldwin-resultatet?
+### Tio frön: håller Baldwin-resultatet?
 
-Baldwin och bara gener med samma fem frön, alltså samma problemström parvis
-(`examples/jamforelse-fem-fron.md`).
+Baldwin och bara gener med samma tio frön, alltså samma problemström parvis
+(`examples/jamforelse-tio-fron.md`, räknat med `seed_stats.py`).
 
 | frö | Baldwin: storlek | Baldwin: lösta | bara gener: storlek | bara gener: lösta | reparationsgenen Baldwin / bara gener |
 |---|---|---|---|---|---|
 | 1 | 28 | 510 | 18 | 183 | +3,0 / +0,1 |
 | 2 | 24 | 464 | 26 | 422 | +2,6 / +1,4 |
-| 3 | 14 | 207 | 20 | 349 | +0,2 / +1,1 |
+| 3 | 14 | 207 | 20 | 349 | +0,1 / +1,1 |
 | 4 | 28 | 453 | 14 | 225 | +2,1 / +0,3 |
 | 5 | 32 | 593 | 14 | 239 | +2,6 / +0,3 |
-| **median** | **28** | **464** | **18** | **239** | **+2,6 / +0,3** |
+| 6 | 20 | 355 | 14 | 390 | +1,3 / +1,2 |
+| 7 | 18 | 130 | 18 | 87 | −0,2 / +0,1 |
+| 8 | 20 | 339 | 24 | 399 | +1,4 / +1,3 |
+| 9 | 14 | 142 | 16 | 250 | −0,2 / −0,2 |
+| 10 | 22 | 446 | 16 | 142 | +1,9 / +0,3 |
+| **median** | **21** | **400** | **17** | **244** | **+1,7 / +0,3** |
 
 *Reparationsgenen* är vikten från "kravet jag kom från var dött" till "lägg lera" hos bästa
 drottningen i sista generationen. Den börjar på 0.
 
-* **Baldwin vann i 4 av 5 frön** och löste i snitt 445 problem mot 284. Men det första fröet
-  överdrev skillnaden: kontrollen där var ovanligt svag. Med fem par är skillnaden inte
-  statistiskt säker (parat t-test p ≈ 0,16, teckentest p ≈ 0,38).
-* **Reparationsregeln blir medfödd med inlärning.** Den växte till +2 eller mer i 4 av 5
-  Baldwin-körningar, och aldrig över +1,4 utan inlärning (Mann–Whitney p ≈ 0,06). Bara gener hittar
-  ibland en svagare variant av samma regel (frö 2 och 3), så inlärningen är inte det enda sättet
-  dit, men den gör vägen mycket kortare.
-* **Frö 3 är undantaget åt båda håll.** Där fastnade Baldwin och kontrollen klarade sig bättre.
-  Evolution med inlärning kan också köra fast.
-* **Ärlig sammanfattning:** inlärning under livet ger en tydlig och upprepbar förändring i
-  generna, den kända reparationsregeln. Fördelen i antal lösta problem är troligen verklig men
-  mindre än en körning antydde, och det behövs fler frön för att säga hur stor den är.
+* **I genomsnitt är Baldwin bättre, men inte säkert.** Fler lösta i 6 av 10 frön, i snitt +95
+  problem (parat t-test p ≈ 0,15). De fem första fröna överdrev skillnaden.
+* **Reparationsgenen avgör allt.** Hur stark den blev förklarar nästan hela skillnaden mellan
+  körningarna (korrelation 0,97 med antal lösta för Baldwin, 0,87 utan inlärning). De som fick den
+  löste i snitt 493 problem, de andra 235.
+* **Bara inlärning tar genen hela vägen.** Den blev +1,9 eller mer i 5 av 10 Baldwin-körningar och
+  aldrig över +1,4 utan inlärning (0 av 10). Det är statistiskt säkert (Fishers exakta test
+  p ≈ 0,03), med förbehållet att gränsen valdes efter att vi sett siffrorna. Utan inlärning når
+  evolutionen ofta halvvägs (+1,1 till +1,4) och fastnar.
+* **Det är ett lotteri med eller utan inlärning.** Hälften av Baldwin-körningarna hittade aldrig
+  regeln och klarade sig då inte bättre än bara gener.
+* **Sammanfattning:** inlärning under livet gör inte myrorna generellt smartare. Den gör det
+  möjligt för evolutionen att ta sista steget till en känd, effektiv regel, ungefär varannan gång.
+  Det är Baldwin-effekten i liten skala: inlärningen jämnar ut landskapet så att selektionen hittar
+  toppen. När det lyckas löser kolonierna dubbelt så många problem.
 
 ### Klarar de lärande drottningarna nya, större problem?
 
