@@ -92,8 +92,17 @@ def parse_mode(mode: str) -> set:
     return flags
 
 
-def reproduce(queens, fitness, rng, elite, sigma, mut_prob, crossover):
-    """Returnerar nya drottningar, rangordningen och vilken drottning som är (första) förälder."""
+def reproduce(queens, fitness, rng, elite, sigma, mut_prob, crossover, jumps="normal", macro=0.0,
+              immigrants=0, base=None):
+    """Returnerar nya drottningar, rangordningen och vilken drottning som är (första) förälder.
+
+    Större kliv i arvsmassan:
+    * jumps="cauchy": mutationerna dras ur en fördelning med tunga svansar. Oftast små ändringar,
+      men ibland en enorm, så att evolutionen kan hoppa långt bort från där den står.
+    * macro: chans per barn för en makromutation, som i naturen när hela gener dupliceras: en hel
+      rad i hjärnan (allt som styr ett beteende) kopieras över en annan, eller två rader byter plats.
+    * immigrants: så många helt nya slumpade drottningar ersätter de sämsta varje generation.
+    """
     order = np.argsort(-np.asarray(fitness))
     ranked = queens[order]
     top = ranked[: max(2, len(queens) // 2)]
@@ -109,9 +118,20 @@ def reproduce(queens, fitness, rng, elite, sigma, mut_prob, crossover):
         else:
             child = a.copy()
         mask = rng.random(child.shape) < mut_prob
-        child = child + mask * rng.normal(0, sigma, child.shape)
+        step = rng.standard_cauchy(child.shape) * sigma if jumps == "cauchy" else rng.normal(0, sigma, child.shape)
+        child = np.clip(child + mask * step, -10, 10)
+        if rng.random() < macro:
+            a_row, b_row = rng.choice(child.shape[0], 2, replace=False)
+            if rng.random() < 0.5:
+                child[a_row] = child[b_row]                                   # genduplikation
+            else:
+                child[[a_row, b_row]] = child[[b_row, a_row]]                 # två beteenden byter plats
         new.append(child)
-    return np.stack(new), order, parents
+    new = np.stack(new)
+    for k in range(min(immigrants, len(new) - elite)):
+        new[-1 - k] = (base if base is not None else 0) + rng.normal(0, 1.0, new.shape[1:])
+        parents[-1 - k] = -1
+    return new, order, parents
 
 
 def main() -> None:
@@ -128,6 +148,10 @@ def main() -> None:
     ap.add_argument("--sigma", type=float, default=0.2)
     ap.add_argument("--mut-prob", type=float, default=0.15)
     ap.add_argument("--crossover", type=float, default=0.5)
+    ap.add_argument("--jumps", choices=["normal", "cauchy"], default="normal",
+                    help="cauchy: oftast små mutationer men ibland enorma kliv")
+    ap.add_argument("--macro", type=float, default=0.0, help="chans per barn för makromutation (genduplikation)")
+    ap.add_argument("--immigrants", type=int, default=0, help="helt nya slumpade drottningar per generation")
     ap.add_argument("--mode", default="none",
                     help="none: bara gener. baldwin: inlärning under livet, ej ärftlig. "
                          "lamarck: inlärt skrivs in i generna. culture: myrorna härmar varandra. "
@@ -198,10 +222,11 @@ def main() -> None:
             if "lamarck" in flags:
                 # det kolonin lärt sig under livet skrivs in i drottningens arv
                 queens = np.stack([r["learned"] for r in res])
-            queens, _, parents = reproduce(queens, fit, rng, a.elite, a.sigma, a.mut_prob, a.crossover)
+            queens, _, parents = reproduce(queens, fit, rng, a.elite, a.sigma, a.mut_prob, a.crossover,
+                                           a.jumps, a.macro, a.immigrants, base)
             if "heritage" in flags:
                 # kulturarv: den nya kolonins grundare bär mor-kolonins inlärda beteende
-                cultures = [res[p]["learned"] for p in parents]
+                cultures = [queens[i] if p < 0 else res[p]["learned"] for i, p in enumerate(parents)]
             np.save(out / "queens.npy", queens)
             if "heritage" in flags:
                 np.save(out / "cultures.npy", np.stack(cultures))
