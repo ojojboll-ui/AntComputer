@@ -85,6 +85,20 @@ def test_memory_brain_runs_and_old_genomes_still_work():
     col2.step()
 
 
+def test_memes_spread_memory_between_sisters():
+    import random
+    import numpy as np
+    from antcomputer.problems import planted_3sat
+    from antcomputer.world import Colony, Params, genome_shape, prior_genome
+    p = planted_3sat(8, 4.0, random.Random(0))
+    q = prior_genome(4)
+    col = Colony(p, Params(memes=True, meme_rate=1.0), np.random.default_rng(0), queen=q)
+    for _ in range(200):
+        col.step()
+    assert col.population > 0
+    assert np.all(np.abs(col.mem[col.alive]) <= 1)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

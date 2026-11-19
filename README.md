@@ -289,8 +289,21 @@ startpunkten. Tre sätt att låta den hoppa längre, som kan kombineras:
 * **Invandrare:** de sämsta drottningarna ersätts varje generation av helt nya slumpade, så att
   mångfalden inte dör ut.
 
+### Memes: minnen som sprids (`--mode baldwin+memes`)
+
+Kulturläget sprider beteende (vikterna i hjärnan) och gjorde det sämre. Memes sprider i stället
+innehållet i minnet: en myra som möter en syster som blomstrar mer på samma plats tar ibland över
+halva hennes minne, med lite brus. Systrar har nästan samma arvsmassa och kan därför läsa varandras
+minnen, så det fungerar som ett slags kommunikation ("jag kom just från en död automat"). Inget
+facit används: "blomstrar" betyder bara hur ofta myran nyligen hittat levande automater.
+
+    python evolve.py --name evo-baldwin-mem4-memes --mode baldwin+memes --mem 4
+
+### Kön
+
 Pågår, i den här ordningen (`queue_mem.sh`), frö 1 till 10 för att kunna jämföras parvis:
-Baldwin med 4 minnesceller, samma med större kliv, och sist bara gener med 4 minnesceller.
+Baldwin med 4 minnesceller, samma med större kliv, samma med memes, och sist bara gener med
+4 minnesceller.
 
 ### Klarar de lärande drottningarna nya, större problem?
 

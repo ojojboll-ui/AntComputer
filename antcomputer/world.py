@@ -115,6 +115,12 @@ class Params:
     # Cellerna börjar tomma vid födseln och arvsmassan har inga instinkter för dem.
     mem: int = 0
     mem_rate: float = 0.5           # hur snabbt en cell skrivs över (1 = direkt, mindre = mer tröghet)
+    # --- memes: minnen sprids mellan systrar. En myra som möter en syster som blomstrar mer
+    # på samma plats tar över en del av hennes minne (inte hennes beteende, som i kulturläget).
+    memes: bool = False
+    meme_rate: float = 0.05         # chans per tick att lyssna på bästa systern på samma plats
+    meme_strength: float = 0.5      # hur mycket av hennes minne som tas över
+    meme_noise: float = 0.05        # man minns aldrig exakt vad någon annan mindes
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -317,6 +323,16 @@ class Colony:
             teach = self.rng.choice(elders, size=k, p=w / w.sum())
             self._imitate(free, teach)
 
+    def _best_at_node(self, ids: np.ndarray, who: np.ndarray) -> np.ndarray:
+        """För varje myra i `who`: den myra bland `ids` på samma plats som blomstrar mest."""
+        order = np.argsort(self.node[ids], kind="stable")
+        sid, sn = ids[order], self.node[ids][order]
+        starts = np.r_[0, np.nonzero(np.diff(sn))[0] + 1]
+        pr = self.prosper[sid]
+        best_idx = np.array([s0 + np.argmax(pr[s0:e0]) for s0, e0 in zip(starts, np.r_[starts[1:], len(sid)])])
+        best_of_node = dict(zip(sn[starts].tolist(), sid[best_idx].tolist()))
+        return np.array([best_of_node[n] for n in self.node[who].tolist()])
+
     def _imitate(self, pupils: np.ndarray, models: np.ndarray) -> None:
         b = self.p.copy_strength
         self.G[pupils] += b * (self.G[models] - self.G[pupils])
@@ -430,17 +446,21 @@ class Colony:
             if p.culture and len(ids) > 1:
                 cop = ids[rng.random(len(ids)) < p.copy_rate]
                 if len(cop):
-                    order = np.argsort(self.node[ids], kind="stable")
-                    sid, sn = ids[order], self.node[ids][order]
-                    starts = np.r_[0, np.nonzero(np.diff(sn))[0] + 1]
-                    # bästa myran (högst "blomstring") på varje plats
-                    pr = self.prosper[sid]
-                    best_idx = np.array([s0 + np.argmax(pr[s0:e0]) for s0, e0 in zip(starts, np.r_[starts[1:], len(sid)])])
-                    best_of_node = dict(zip(sn[starts].tolist(), sid[best_idx].tolist()))
-                    model = np.array([best_of_node[n] for n in self.node[cop].tolist()])
+                    model = self._best_at_node(ids, cop)
                     keep = self.prosper[model] > self.prosper[cop]
                     if keep.any():
                         self._imitate(cop[keep], model[keep])
+
+            # --- memes: ta över en del av minnet hos den syster som blomstrar mest på samma plats
+            if p.memes and self.M and len(ids) > 1:
+                lis = ids[rng.random(len(ids)) < p.meme_rate]
+                if len(lis):
+                    model = self._best_at_node(ids, lis)
+                    keep = self.prosper[model] > self.prosper[lis]
+                    if keep.any():
+                        a, b = lis[keep], model[keep]
+                        m = self.mem[a] + p.meme_strength * (self.mem[b] - self.mem[a])
+                        self.mem[a] = np.clip(m + rng.normal(0, p.meme_noise, m.shape), -1, 1)
 
             # --- vid automaten: känn om den är levande (kravet uppfyllt) eller död, plocka mat
             at_c = nt == CLAUSE

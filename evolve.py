@@ -42,7 +42,7 @@ def live(args):
     """En kolonis liv. Returnerar fitness och vad som hände."""
     queen, n, ratio, lifetime, stream_seed, colony_seed, hold, mode, culture_seed = args
     flags = parse_mode(mode)
-    params = Params(learning=bool(flags & {"baldwin", "lamarck"}), culture="culture" in flags)
+    params = Params(learning=bool(flags & {"baldwin", "lamarck"}), culture="culture" in flags, memes="memes" in flags)
     rng = np.random.default_rng(colony_seed)
     k = 0
     problem = satisfiable_instance(n, ratio, stream_seed * 1000 + k, 100_000)
@@ -78,7 +78,7 @@ def live(args):
                 solve_ticks=solve_ticks, repair_focus=focus, deposits_per_tick=dep / max(t, 1))
 
 
-MODE_TOKENS = {"none", "baldwin", "lamarck", "culture", "heritage"}
+MODE_TOKENS = {"none", "baldwin", "lamarck", "culture", "heritage", "memes"}
 
 
 def parse_mode(mode: str) -> set:
@@ -155,7 +155,7 @@ def main() -> None:
     ap.add_argument("--mode", default="none",
                     help="none: bara gener. baldwin: inlärning under livet, ej ärftlig. "
                          "lamarck: inlärt skrivs in i generna. culture: myrorna härmar varandra. "
-                         "heritage: ny koloni ärver mor-kolonins kultur. Kombinera med +, t.ex. baldwin+culture")
+                         "heritage: ny koloni ärver mor-kolonins kultur. memes: minnen sprids mellan systrar (kräver --mem). Kombinera med +, t.ex. baldwin+culture")
     ap.add_argument("--mem", type=int, default=0, help="antal minnesceller per myra (0 = inget minne)")
     ap.add_argument("--blank-slate", action="store_true", help="drottningarna börjar utan några instinkter")
     ap.add_argument("--seed", type=int, default=1)
@@ -166,6 +166,8 @@ def main() -> None:
     a = ap.parse_args()
 
     flags = parse_mode(a.mode)
+    if "memes" in flags and not a.mem:
+        raise SystemExit("memes kräver minne (--mem N)")
     rng = np.random.default_rng(a.seed)
     shape = genome_shape(a.mem)
     base = np.zeros(shape) if a.blank_slate else prior_genome(a.mem)
