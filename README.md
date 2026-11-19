@@ -265,6 +265,19 @@ och arvsmassan har inga instinkter för dem: vad de ska betyda måste evolutione
 
     python evolve.py --name evo-baldwin-mem4 --mode baldwin --mem 4
 
+**Preliminärt (5 av 10 frön):** med minne löste Baldwin färre problem än utan i alla fem frön
+(median 205 mot 464, parat t-test p ≈ 0,03). Troligen för att arvsmassan växer från 132 till 240
+vikter, så evolutionen söker långsammare.
+
+**Används minnet?** `ablation.py` kör de färdiga drottningarna med minnet påslaget och fruset
+(`mem_rate=0`, cellerna förblir 0), 10 kolonieliv var på samma problem (`examples/ablation-minne.md`).
+Med fruset minne löste de 5 problem i stället för 13, och i de två bästa fröna sjönk maten med
+21 % och 40 %. Minnet används alltså. Drottningarna som hann bygga upp ett beteende har gjort sig
+beroende av det, fast det totalt sett gjort evolutionen långsammare. Få lösta problem per körning,
+så ta siffrorna som en riktning, inte ett säkert mått.
+
+    python ablation.py --runs evo-baldwin-mem4 evo-baldwin-mem4-s2 --lives 10
+
 ### Större kliv (`--jumps cauchy`, `--macro`, `--immigrants`)
 
 Evolutionen har bara tagit små steg från där den står, och hittar därför bara det som ligger nära
