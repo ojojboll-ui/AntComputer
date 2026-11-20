@@ -302,8 +302,8 @@ facit används: "blomstrar" betyder bara hur ofta myran nyligen hittat levande a
 ### Kön
 
 Pågår, i den här ordningen (`queue_mem.sh`), frö 1 till 10 för att kunna jämföras parvis:
-Baldwin med 4 minnesceller, samma med större kliv, samma med memes, och sist bara gener med
-4 minnesceller.
+Baldwin med 4 minnesceller, samma med större kliv, samma med memes och större kliv, samma med
+bara memes, och sist bara gener med 4 minnesceller.
 
 ### Klarar de lärande drottningarna nya, större problem?
 
