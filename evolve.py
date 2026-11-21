@@ -25,7 +25,9 @@ Exempel:
     python evolve.py --name test --queens 8 --generations 3 --lifetime 2000
 """
 import argparse
+import hashlib
 import json
+import pickle
 import os
 import random
 import time
@@ -200,7 +202,24 @@ def main() -> None:
             stream = a.seed * 100000 + gen
             jobs = [(q, n, a.ratio, a.lifetime, stream, a.seed * 10**6 + gen * 1000 + i, 20, a.mode, cultures[i])
                     for i, q in enumerate(queens)]
-            res = pool.map(live, jobs)
+            # spara varje färdigt koloniliv, så att en avbruten generation fortsätter där den var
+            # (fröna är fasta, så samma liv ger samma resultat; bara de som saknas körs om)
+            part = out / "partial_gen.pkl"
+            key = hashlib.sha256(queens.tobytes() + repr((gen, n, a.mode, a.lifetime, a.ratio, a.seed)).encode()
+                                 + b"".join(np.asarray(c).tobytes() for c in cultures if c is not None)).hexdigest()
+            done = {}
+            if part.exists():
+                saved = pickle.loads(part.read_bytes())
+                if saved.get("key") == key:
+                    done = saved["res"]
+                    print(f"generation {gen}: {len(done)} av {len(jobs)} kolonier redan klara", flush=True)
+            todo = [i for i in range(len(jobs)) if i not in done]
+            for i, r in zip(todo, pool.imap(live, [jobs[i] for i in todo])):
+                done[i] = r
+                tmp = part.with_suffix(".tmp")
+                tmp.write_bytes(pickle.dumps(dict(key=key, res=done)))
+                tmp.replace(part)
+            res = [done[i] for i in range(len(jobs))]
             fit = [r["fitness"] for r in res]
             solving = sum(r["solved"] > 0 for r in res) / len(res)
             b = int(np.argmax(fit))
@@ -233,6 +252,7 @@ def main() -> None:
             if "heritage" in flags:
                 np.save(out / "cultures.npy", np.stack(cultures))
             (out / "state.json").write_text(json.dumps(dict(log=log), ensure_ascii=False))
+            part.unlink(missing_ok=True)
 
     # bästa drottningens döttrar som fil för scaling.py
     np.save(out / "best_queen_workers.npy", best_ever[None] + np.random.default_rng(0).normal(0, 0.1, (50,) + shape))
