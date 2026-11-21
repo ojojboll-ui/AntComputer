@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 runs_*.log
 runs_*.log.resume
+partial_gen.pkl
+partial_gen.tmp
