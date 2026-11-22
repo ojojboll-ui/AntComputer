@@ -2,9 +2,10 @@
 # Rikare hjärnor och större kliv, i ordning:
 #   1. Baldwin + 4 minnesceller, frö 1-10
 #   2. samma + större kliv (Cauchy-mutationer, makromutationer, invandrare), frö 1-10
-#   3. Baldwin + 4 minnesceller + memes + större kliv, frö 1-10
-#   4. Baldwin + 4 minnesceller + memes (minnen sprids mellan systrar), frö 1-10
-#   5. bara gener + 4 minnesceller, frö 1-10
+#   3. större kliv i 100 generationer: fortsätter de färdiga 50-generationskörningarna, frö 1-10
+#   4. Baldwin + 4 minnesceller + memes + större kliv, frö 1-10
+#   5. Baldwin + 4 minnesceller + memes (minnen sprids mellan systrar), frö 1-10
+#   6. bara gener + 4 minnesceller, frö 1-10
 # Tål omstarter: färdiga körningar hoppas över, avbrutna fortsätter, och en körning som redan
 # pågår (t.ex. startad av en tidigare kö) väntas in i stället för att startas en gång till.
 cd "$(dirname "$0")"
@@ -17,18 +18,29 @@ evo() {  # namn läge frö [extra flaggor]
   nice -n 10 python3 evolve.py --name $name --mode $mode --seed $seed --mem 4 --generations 50 --workers 1 \
     "$@" $resume >> runs_${name//-/_}.log 2>&1
 }
-export -f evo
+longer() {  # namn från läge frö [extra flaggor]: fortsätt en färdig körning till 100 generationer
+  local name=$1 from=$2; shift 2
+  until [ -f runs/$from/evolution.md ]; do sleep 60; done
+  if [ ! -d runs/$name ]; then
+    cp -r runs/$from runs/$name
+    rm -f runs/$name/evolution.md runs/$name/evolution.json runs/$name/best_queen_workers.npy
+  fi
+  evo $name "$@" --generations 100
+}
+export -f evo longer
 run() { [ $2 = 1 ] && echo evo-$1 || echo evo-$1-s$2; }
 LEAPS="--jumps cauchy --macro 0.1 --immigrants 2"
-{ for s in $(seq 1 10); do echo "$(run baldwin-mem4 $s) baldwin $s"; done
-  for s in $(seq 1 10); do echo "$(run baldwin-mem4-kliv $s) baldwin $s $LEAPS"; done
-  for s in $(seq 1 10); do echo "$(run baldwin-mem4-memes-kliv $s) baldwin+memes $s $LEAPS"; done
-  for s in $(seq 1 10); do echo "$(run baldwin-mem4-memes $s) baldwin+memes $s"; done
-  for s in $(seq 1 10); do echo "$(run none-mem4 $s) none $s"; done; } \
-  | xargs -P 4 -L 1 bash -c 'evo "$@"' _
+{ for s in $(seq 1 10); do echo "evo $(run baldwin-mem4 $s) baldwin $s"; done
+  for s in $(seq 1 10); do echo "evo $(run baldwin-mem4-kliv $s) baldwin $s $LEAPS"; done
+  for s in $(seq 1 10); do echo "longer $(run baldwin-mem4-kliv100 $s) $(run baldwin-mem4-kliv $s) baldwin $s $LEAPS"; done
+  for s in $(seq 1 10); do echo "evo $(run baldwin-mem4-memes-kliv $s) baldwin+memes $s $LEAPS"; done
+  for s in $(seq 1 10); do echo "evo $(run baldwin-mem4-memes $s) baldwin+memes $s"; done
+  for s in $(seq 1 10); do echo "evo $(run none-mem4 $s) none $s"; done; } \
+  | xargs -P 4 -L 1 bash -c '"$@"' _
 stats() { python3 seed_stats.py "$@" $(seq 1 10); echo; }
 { echo "## Baldwin: med mot utan minne"; stats baldwin-mem4 baldwin
   echo "## Baldwin med minne: större kliv mot vanliga"; stats baldwin-mem4-kliv baldwin-mem4
+  echo "## Större kliv: 100 mot 50 generationer"; stats baldwin-mem4-kliv100 baldwin-mem4-kliv
   echo "## Baldwin med minne: memes mot utan memes"; stats baldwin-mem4-memes baldwin-mem4
   echo "## Större kliv: med mot utan memes"; stats baldwin-mem4-memes-kliv baldwin-mem4-kliv
   echo "## Bara gener: med mot utan minne"; stats none-mem4 none
