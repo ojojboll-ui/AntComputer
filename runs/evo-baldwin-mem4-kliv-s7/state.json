@@ -1,0 +1,1 @@
+{"log": [{"gen": 0, "n": 10, "best_fitness": 221067.0, "median_fitness": 13854.0, "share_solving": 0.167, "best_solved": 2, "total_solved": 6, "survived": 13, "best_repair_focus": 0.818, "median_repair_focus": 0.969, "seconds": 68, "learned_drift": 0.0046}]}
