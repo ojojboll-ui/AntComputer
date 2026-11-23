@@ -292,6 +292,11 @@ startpunkten. Tre sätt att låta den hoppa längre, som kan kombineras:
 * **Invandrare:** de sämsta drottningarna ersätts varje generation av helt nya slumpade, så att
   mångfalden inte dör ut.
 
+**Preliminärt (8 av 10 frön):** med 4 minnesceller löste kolonierna med större kliv fler problem
+än med vanliga steg i 8 av 8 frön (median 1 037 mot 238, parat t-test p ≈ 0,004) och nådde större
+problem (median n = 33 mot 19). Reparationsgenen blev starkare i 6 av 8. Det stora sökrummet som
+minnet ger blir alltså användbart först när evolutionen får hoppa långt.
+
 ### Memes: minnen som sprids (`--mode baldwin+memes`)
 
 Kulturläget sprider beteende (vikterna i hjärnan) och gjorde det sämre. Memes sprider i stället
@@ -305,9 +310,9 @@ facit används: "blomstrar" betyder bara hur ofta myran nyligen hittat levande a
 ### Kön
 
 Pågår, i den här ordningen (`queue_mem.sh`), frö 1 till 10 för att kunna jämföras parvis:
-Baldwin med 4 minnesceller, samma med större kliv, större kliv i 100 generationer i stället för 50
-(de färdiga körningarna fortsätter där de slutade), samma med memes och större kliv, samma med
-bara memes, och sist bara gener med 4 minnesceller.
+Baldwin med 4 minnesceller, samma med större kliv, samma med memes och större kliv, större kliv i
+100 generationer i stället för 50 på frö 1, 2 och 9 (de färdiga körningarna fortsätter där de
+slutade), samma med bara memes, och sist bara gener med 4 minnesceller.
 
 ### Klarar de lärande drottningarna nya, större problem?
 
