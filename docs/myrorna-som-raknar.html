@@ -1,0 +1,267 @@
+<title>Myrorna som räknar</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: en scen (canvas) med kapitelrad ovanför och berättartext under; allt i en smal kolumn. */
+:root{
+  --bg:#edf1ee; --panel:#e2e8e4; --fg:#17211d; --muted:#5b6b64; --line:#b9c6bf;
+  --clay:#b8862b; --clay-soft:#e9d3a3; --alive:#2c9364; --dead:#b5483f; --ant:#17211d; --food:#2c9364;
+  --display:"Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1513; --panel:#18211d; --fg:#e2ebe6; --muted:#93a59c; --line:#34433c;
+  --clay:#d7a44a; --clay-soft:#4a3b1d; --alive:#45c18a; --dead:#e06a5f; --ant:#e2ebe6; --food:#45c18a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1513; --panel:#18211d; --fg:#e2ebe6; --muted:#93a59c; --line:#34433c;
+  --clay:#d7a44a; --clay-soft:#4a3b1d; --alive:#45c18a; --dead:#e06a5f; --ant:#e2ebe6; --food:#45c18a; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.55}
+.wrap{max-width:980px;margin:0 auto;padding-block:28px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:18px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(1.6rem,3.6vw,2.4rem);line-height:1.1;margin:0;text-wrap:balance}
+.lede{color:var(--muted);margin:0;max-width:62ch}
+.chapters{display:flex;flex-wrap:wrap;gap:6px}
+.chapters button{font:500 .86rem var(--body);border:1px solid var(--line);background:transparent;color:var(--muted);padding:6px 12px;border-radius:999px;cursor:pointer}
+.chapters button[aria-current="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.chapters button:focus-visible,.ctl button:focus-visible{outline:2px solid var(--alive);outline-offset:2px}
+.stage{position:relative;background:var(--panel);border-radius:14px;overflow:hidden}
+canvas{display:block;width:100%;height:auto;max-width:100%}
+.progress{position:absolute;left:0;bottom:0;height:3px;background:var(--alive);width:0}
+.caption{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;align-items:start}
+.num{font:500 .8rem var(--mono);color:var(--muted);letter-spacing:.06em;padding-top:4px}
+.caption h2{font-family:var(--display);font-weight:500;font-size:1.3rem;margin:0;text-wrap:balance}
+.caption p{margin:0;grid-column:2;max-width:64ch;min-width:0}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ctl button{font:500 .9rem var(--body);border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:7px 14px;border-radius:8px;cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font:400 .82rem var(--mono);color:var(--muted)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:-1px;margin-right:6px}
+@media (max-width:520px){.caption{grid-template-columns:1fr}.caption p{grid-column:1}}
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:8px">
+    <h1>Myrorna som räknar</h1>
+    <p class="lede">Hur en myrkoloni kan lösa ett logikproblem utan att någon myra vet vad problemet är. Animationen visar ett riktigt litet 3-SAT-problem med fyra variabler och fem krav.</p>
+  </header>
+
+  <nav class="chapters" id="chapters" aria-label="Kapitel"></nav>
+
+  <div class="stage">
+    <canvas id="c" width="960" height="560" aria-label="Animation av myrkolonin och problemet"></canvas>
+    <div class="progress" id="prog"></div>
+  </div>
+
+  <div class="caption" aria-live="polite">
+    <span class="num" id="num">1/5</span>
+    <h2 id="ttl"></h2>
+    <p id="txt"></p>
+  </div>
+
+  <div class="ctl">
+    <button id="play" type="button">Pausa</button>
+    <button id="next" type="button">Nästa kapitel</button>
+    <button id="reset" type="button">Nytt problem</button>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:var(--clay)"></i>lerkammare med lera = variabeln är sann</span>
+    <span><i style="background:var(--alive)"></i>levande automat = kravet uppfyllt</span>
+    <span><i style="background:var(--dead)"></i>död automat = kravet bryts</span>
+    <span>— krävs lera &nbsp; ┄ krävs ingen lera</span>
+  </div>
+</div>
+
+<script>
+(() => {
+const CH = [
+  {t:"Oraklet ställer ett problem", d:"Oraklet ger kolonin en formel: fem krav som alla måste vara uppfyllda samtidigt. Varje krav är tre villkor där minst ett måste stämma, till exempel ”x₁ eller inte x₂ eller x₃”. Uppgiften är att välja sant eller falskt för x₁ till x₄ så att alla fem krav håller. Ingen myra får se formeln."},
+  {t:"Problemet blir en värld", d:"Varje variabel blir en lerkammare längst ner. Lera i kammaren betyder sant, tom kammare betyder falskt. Varje krav blir en matautomat högst upp, kopplad till sina tre kammare. Automaten lever och ger mat så länge minst en av dess kopplingar är nöjd: heldragen linje vill ha lera, streckad vill ha tom kammare."},
+  {t:"Myrorna känner bara sin närhet", d:"Myrorna vandrar mellan automater och kammare. En myra vet bara vad den känner just där den står: lever automaten eller inte, finns det lera här. Hennes ärvda instinkt säger ungefär: har jag just varit vid en död automat, ändra leran i nästa kammare jag kommer till. Ingen myra vet vilket svar som är rätt."},
+  {t:"Mat driver evolutionen", d:"Levande automater ger mat till boet, och mat ger fler myror. När alla automater lever en stund i sträck är problemet löst och kolonin får en bonus. Kolonier som löser flest problem får föra sina drottningars gener vidare, och instinkten att reparera döda automater blir starkare för varje generation."},
+  {t:"Svaret står i leran", d:"När alla fem automater lever kan vi läsa svaret direkt i kamrarna: lera betyder 1, tom kammare 0. Oraklet kontrollerar svaret mot formeln. Själva beräkningen fanns aldrig i någon enskild myra, bara i hur hela kolonin tillsammans flyttade lera."}
+];
+const DUR = [9000, 11000, 13000, 13000, 11000];
+
+const N = 4;
+const CL = [[1,-2,3],[-1,2,4],[2,-3,-4],[-1,-3,4],[1,3,-4]];
+const SUB = ["₁","₂","₃","₄"];
+const lit = l => (l<0?"¬":"")+"x"+SUB[Math.abs(l)-1];
+
+const cv = document.getElementById("c"), cx = cv.getContext("2d");
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let W=960,H=560;
+function resize(){
+  const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio||1);
+  const narrow = r.width < 560; W = narrow ? 600 : 960; H = narrow ? 760 : 560;
+  cv.width = W*dpr; cv.height = H*dpr; cx.setTransform(dpr,0,0,dpr,0,0);
+}
+let col = {};
+function readColors(){ const s=getComputedStyle(document.documentElement);
+  for (const k of ["bg","panel","fg","muted","line","clay","clay-soft","alive","dead","ant","food"]) col[k]=s.getPropertyValue("--"+k).trim(); }
+
+let rng = Math.random;
+let assign, clay, ants, food, foodCount, solvedFor, solvedFlash, flips, demoT;
+function newProblem(){
+  do { assign = Array.from({length:N},()=>rng()<.5); } while (CL.every(c=>sat(c)));
+  clay = assign.map(a=>a?1:0); food=[]; foodCount=0; solvedFor=0; solvedFlash=0; flips=0; demoT=0;
+  ants = Array.from({length:9},(_,i)=>spawnAnt(i));
+}
+const sat = c => c.some(l => assign[Math.abs(l)-1] === (l>0));
+function pos(kind,i){
+  const narrow = H>600;
+  if (kind==="c"){ const y = narrow?130:118; const m = narrow?62:150; return {x: m + i*(W-2*m)/(CL.length-1), y: narrow && i%2 ? y+70 : y}; }
+  if (kind==="v"){ const y = narrow?590:430; const m = narrow?100:220; return {x: m + i*(W-2*m)/(N-1), y}; }
+  return {x: narrow?40:64, y: narrow?400:285};
+}
+function spawnAnt(i){ const c=Math.floor(rng()*CL.length); return {at:{k:"c",i:c}, to:null, t:0, sawDead:false, carry:0, spd:.006+rng()*.004, hi:i===0}; }
+function pickNext(a){
+  if (a.at.k==="c"){ const c=CL[a.at.i]; a.sawDead = !sat(c); const l=c[Math.floor(rng()*3)]; a.to={k:"v",i:Math.abs(l)-1}; }
+  else { const opts=[]; CL.forEach((c,ci)=>{ if(c.some(l=>Math.abs(l)-1===a.at.i)) opts.push(ci); }); a.to={k:"c",i:opts[Math.floor(rng()*opts.length)]}; }
+  a.carry = a.sawDead && a.to.k==="v" ? 1 : 0; a.t=0;
+}
+let chap=0, chapStart=performance.now(), paused=false, pausedAt=0;
+
+function step(dt){
+  const repair = chap>=2, feeding = chap>=3;
+  if (chap===1){ demoT+=dt; if (demoT>1600){ demoT=0; const v=Math.floor(rng()*N); assign[v]=!assign[v]; } }
+  if (chap>=2 && !(chap===4 && solvedFor>1400)){
+    for (const a of ants){
+      if (!a.to) pickNext(a);
+      a.t += a.spd*dt/16;
+      if (a.t>=1){ a.at=a.to; a.to=null;
+        if (a.at.k==="v" && a.sawDead && repair){ assign[a.at.i]=!assign[a.at.i]; flips++; a.sawDead=false; }
+      }
+    }
+  }
+  for (let v=0;v<N;v++){ const g=assign[v]?1:0; clay[v]+= (g-clay[v])*Math.min(1,dt/180); }
+  if (feeding){
+    CL.forEach((c,ci)=>{ if (sat(c) && rng()<dt/900){ const p=pos("c",ci); food.push({x:p.x,y:p.y,t:0}); } });
+    for (const f of food) f.t += dt/1400;
+    for (const f of food) if (f.t>=1) foodCount++;
+    food = food.filter(f=>f.t<1);
+  }
+  const all = CL.every(sat);
+  solvedFor = all ? solvedFor+dt : 0;
+  if (chap===3 && solvedFor>2600){ solvedFlash=1; foodCount+=25; newProblemKeepAnts(); }
+  solvedFlash = Math.max(0, solvedFlash-dt/1500);
+}
+function newProblemKeepAnts(){ do { assign = Array.from({length:N},()=>rng()<.5); } while (CL.every(c=>sat(c))); solvedFor=0; }
+
+function draw(){
+  cx.clearRect(0,0,W,H);
+  cx.fillStyle=col.panel; cx.fillRect(0,0,W,H);
+  const showWorld = chap>=1, showAnts = chap>=2;
+
+  if (chap===0){
+    cx.fillStyle=col.muted; cx.font="500 15px "+getVar("--mono"); cx.textAlign="center";
+    cx.fillText("ORAKLETS FORMEL", W/2, H*0.2);
+    cx.fillStyle=col.fg; cx.font="500 "+(H>600?21:30)+"px "+getVar("--mono");
+    const parts = CL.map(c=>"("+c.map(lit).join(" ∨ ")+")");
+    const rows = H>600 ? [parts.slice(0,2),parts.slice(2,4),parts.slice(4)] : [parts.slice(0,3),parts.slice(3)];
+    rows.forEach((r,i)=>cx.fillText(r.join(" ∧ ")+(i<rows.length-1?" ∧":""), W/2, H*0.36+i*56));
+    cx.fillStyle=col.muted; cx.font="400 16px "+getVar("--body");
+    cx.fillText(H>600?"Hitta sant/falskt för x₁…x₄ så att alla stämmer.":"Hitta sant/falskt för x₁…x₄ så att alla fem parenteser stämmer.", W/2, H*0.36+rows.length*56+30);
+    return;
+  }
+  // edges
+  CL.forEach((c,ci)=>{ const a=pos("c",ci);
+    c.forEach(l=>{ const b=pos("v",Math.abs(l)-1); const ok = assign[Math.abs(l)-1]===(l>0);
+      cx.strokeStyle = ok ? col.alive : col.line; cx.globalAlpha = ok ? .75 : .9; cx.lineWidth = ok?2.2:1.4;
+      cx.setLineDash(l<0?[6,6]:[]); cx.beginPath(); cx.moveTo(a.x,a.y+26); cx.lineTo(b.x,b.y-30); cx.stroke(); });
+  });
+  cx.setLineDash([]); cx.globalAlpha=1;
+  // nest
+  if (chap>=3){ const n=pos("n"); cx.beginPath(); cx.arc(n.x,n.y,34,0,7); cx.fillStyle=col["clay-soft"]; cx.fill();
+    cx.fillStyle=col.fg; cx.font="500 13px "+getVar("--mono"); cx.textAlign="center"; cx.fillText("BO", n.x, n.y-4);
+    cx.font="500 14px "+getVar("--mono"); cx.fillText(String(foodCount), n.x, n.y+14); }
+  // food
+  for (const f of food){ const n=pos("n"); const x=f.x+(n.x-f.x)*f.t, y=f.y+(n.y-f.y)*f.t - Math.sin(f.t*Math.PI)*40;
+    cx.fillStyle=col.food; cx.beginPath(); cx.arc(x,y,3.2,0,7); cx.fill(); }
+  // clauses
+  CL.forEach((c,ci)=>{ const p=pos("c",ci), s=sat(c);
+    hex(p.x,p.y,26); cx.fillStyle = s?col.alive:col.dead; cx.globalAlpha = s?1:.85; cx.fill(); cx.globalAlpha=1;
+    cx.fillStyle=col.bg; cx.font="700 14px "+getVar("--display"); cx.textAlign="center"; cx.fillText("K"+(ci+1), p.x, p.y+5);
+    cx.fillStyle=col.muted; cx.font="400 12px "+getVar("--mono"); cx.fillText(c.map(lit).join(" ∨ "), p.x, p.y-36);
+  });
+  // pads
+  for (let v=0;v<N;v++){ const p=pos("v",v);
+    cx.strokeStyle=col.fg; cx.lineWidth=2; cx.beginPath(); cx.arc(p.x,p.y,28,0,7); cx.stroke();
+    const r=26*Math.sqrt(clay[v]); if (r>.5){ cx.fillStyle=col.clay; cx.beginPath(); cx.arc(p.x,p.y,r,0,7); cx.fill(); }
+    cx.fillStyle=col.fg; cx.font="500 15px "+getVar("--mono"); cx.textAlign="center"; cx.fillText("x"+SUB[v], p.x, p.y+50);
+    if (chap===4 && CL.every(sat)){ cx.font="700 22px "+getVar("--mono"); cx.fillStyle=col.alive; cx.fillText(assign[v]?"1":"0", p.x, p.y+80); }
+  }
+  // ants
+  if (showAnts) for (const a of ants){
+    const A=pos(a.at.k,a.at.i), B=a.to?pos(a.to.k,a.to.i):A; const t=a.to?ease(a.t):0;
+    const x=A.x+(B.x-A.x)*t, y=(A.y+(a.at.k==="c"?26:-30))+((B.y+(a.to&&a.to.k==="c"?26:-30))-(A.y+(a.at.k==="c"?26:-30)))*t;
+    const ang=Math.atan2(B.y-A.y,B.x-A.x);
+    ant(x,y,ang,a);
+  }
+  // status
+  cx.textAlign="left"; cx.font="500 13px "+getVar("--mono"); cx.fillStyle=col.muted;
+  const alive=CL.filter(sat).length;
+  cx.fillText(`levande automater ${alive}/5`, 20, H-20);
+  if (showAnts) cx.fillText(`lera flyttad ${flips} gånger`, H>600?20:230, H>600?H-40:H-20);
+  if (chap===4 && CL.every(sat)){
+    cx.textAlign="right"; cx.fillStyle=col.alive; cx.font="700 16px "+getVar("--mono");
+    cx.fillText("x = "+assign.map(a=>a?1:0).join("")+"  ✓ godkänt", W-20, H-20);
+  }
+  if (solvedFlash>0){ cx.globalAlpha=solvedFlash; cx.textAlign="center"; cx.fillStyle=col.alive; cx.font="700 30px "+getVar("--display");
+    cx.fillText("Löst! +25 mat, nytt problem", W/2, H*0.5); cx.globalAlpha=1; }
+}
+function ant(x,y,ang,a){
+  cx.save(); cx.translate(x,y); cx.rotate(ang);
+  cx.fillStyle=col.ant;
+  cx.beginPath(); cx.ellipse(-6,0,5,3.6,0,0,7); cx.fill();
+  cx.beginPath(); cx.ellipse(0,0,3,2.6,0,0,7); cx.fill();
+  cx.beginPath(); cx.ellipse(5,0,3.2,3,0,0,7); cx.fill();
+  cx.strokeStyle=col.ant; cx.lineWidth=1; cx.beginPath();
+  for (const s of [-1,1]){ cx.moveTo(-2,0); cx.lineTo(-5,6*s); cx.moveTo(1,0); cx.lineTo(1,6*s); cx.moveTo(3,0); cx.lineTo(6,6*s); }
+  cx.stroke();
+  if (a.carry){ cx.fillStyle=col.clay; cx.beginPath(); cx.arc(9,0,3.4,0,7); cx.fill(); }
+  cx.restore();
+  if (a.hi && chap===2){ cx.strokeStyle=col.dead; cx.lineWidth=1.5; cx.beginPath(); cx.arc(x,y,14,0,7); cx.stroke();
+    cx.fillStyle=col.fg; cx.font="400 12px "+getVar("--mono"); const right = x > W-260;
+    cx.textAlign = right ? "right" : "left";
+    cx.fillText(a.sawDead?"kom från död automat → ändrar leran":"allt lugnt → vandrar vidare", right ? x-18 : x+18, y+4); }
+}
+const ease = t => t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+function hex(x,y,r){ cx.beginPath(); for(let k=0;k<6;k++){ const a=Math.PI/6+k*Math.PI/3; cx[k?"lineTo":"moveTo"](x+r*Math.cos(a),y+r*Math.sin(a)); } cx.closePath(); }
+const vars={}; function getVar(n){ return vars[n] || (vars[n]=getComputedStyle(document.documentElement).getPropertyValue(n).trim()); }
+
+// UI
+const nav=document.getElementById("chapters");
+CH.forEach((c,i)=>{ const b=document.createElement("button"); b.type="button"; b.id="ch"+i; b.textContent=(i+1)+". "+c.t; b.onclick=()=>go(i); nav.appendChild(b); });
+function go(i){ chap=i; chapStart=performance.now(); if (i<3) food=[]; if (paused) pausedAt=chapStart;
+  if (i===1||i===2) { if (CL.every(sat)) newProblemKeepAnts(); }
+  if (i===4 && CL.every(sat)) newProblemKeepAnts();
+  [...nav.children].forEach((b,k)=>b.setAttribute("aria-current", k===i?"true":"false"));
+  document.getElementById("num").textContent=(i+1)+"/5";
+  document.getElementById("ttl").textContent=CH[i].t; document.getElementById("txt").textContent=CH[i].d; }
+const playBtn=document.getElementById("play");
+playBtn.onclick=()=>{ paused=!paused; playBtn.textContent=paused?"Spela":"Pausa"; if(paused) pausedAt=performance.now(); else chapStart+=performance.now()-pausedAt; };
+document.getElementById("next").onclick=()=>go((chap+1)%CH.length);
+document.getElementById("reset").onclick=()=>{ newProblem(); };
+
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(50, now-last); last=now;
+  if (!paused){
+    step(dt);
+    const el=now-chapStart;
+    const done = chap===4 ? (el>DUR[4] && solvedFor>3500) : el>DUR[chap];
+    document.getElementById("prog").style.width = Math.min(100, el/DUR[chap]*100)+"%";
+    if (done && !reduce) go((chap+1)%CH.length);
+  }
+  draw(); requestAnimationFrame(frame);
+}
+const mo=new MutationObserver(()=>{ for(const k in vars) delete vars[k]; readColors(); });
+mo.observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",readColors);
+addEventListener("resize",resize);
+resize(); readColors(); newProblem(); go(0);
+if (reduce){ paused=true; playBtn.textContent="Spela"; pausedAt=performance.now(); }
+requestAnimationFrame(frame);
+})();
+</script>
