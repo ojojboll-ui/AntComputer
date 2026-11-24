@@ -310,8 +310,9 @@ facit används: "blomstrar" betyder bara hur ofta myran nyligen hittat levande a
 ### Kön
 
 Pågår, i den här ordningen (`queue_mem.sh`), frö 1 till 10 för att kunna jämföras parvis:
-Baldwin med 4 minnesceller, samma med större kliv, samma med memes och större kliv, större kliv i
-100 generationer i stället för 50 på frö 1, 2 och 9 (de färdiga körningarna fortsätter där de
+Baldwin med 4 minnesceller, samma med större kliv, samma med memes och större kliv, en
+klivmekanism i taget (bara Cauchy-mutationer, bara makromutationer, bara invandrare; frö 1 till 5),
+större kliv i 100 generationer i stället för 50 på frö 1, 2 och 9 (de färdiga körningarna fortsätter där de
 slutade), samma med bara memes, och sist bara gener med 4 minnesceller.
 
 ### Klarar de lärande drottningarna nya, större problem?
