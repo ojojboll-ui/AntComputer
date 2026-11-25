@@ -292,10 +292,13 @@ startpunkten. Tre sätt att låta den hoppa längre, som kan kombineras:
 * **Invandrare:** de sämsta drottningarna ersätts varje generation av helt nya slumpade, så att
   mångfalden inte dör ut.
 
-**Preliminärt (8 av 10 frön):** med 4 minnesceller löste kolonierna med större kliv fler problem
-än med vanliga steg i 8 av 8 frön (median 1 037 mot 238, parat t-test p ≈ 0,004) och nådde större
-problem (median n = 33 mot 19). Reparationsgenen blev starkare i 6 av 8. Det stora sökrummet som
-minnet ger blir alltså användbart först när evolutionen får hoppa långt.
+**Resultat, 10 frön** (`examples/jamforelse-kliv.md`): med 4 minnesceller löste kolonierna med
+större kliv fler problem än med vanliga steg i **10 av 10 frön** (median 999 mot 272, parat t-test
+p ≈ 0,001, teckentest p ≈ 0,002) och nådde större problem i 8 av 10 (median n = 34 mot 19,
+p ≈ 0,004). Reparationsgenen blev starkare i 8 av 10 (median +5,0 mot +1,1). De slår också Baldwin
+utan minne i 10 av 10 frön (p < 0,001). Det stora sökrummet som minnet ger blir alltså användbart
+först när evolutionen får hoppa långt. Vilken av de tre mekanismerna som gör jobbet testas nu en i
+taget.
 
 ### Memes: minnen som sprids (`--mode baldwin+memes`)
 
